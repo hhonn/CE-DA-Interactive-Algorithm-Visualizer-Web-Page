@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DBSCAN Visualizer</title>
+<meta name="description" content="Interactive, step-by-step visualizer of the DBSCAN density-based clustering algorithm.">
+<link rel="icon" href="data:,"><!-- inline empty icon: stops the automatic /favicon.ico request -->
+
+<style>
+/* =====================================================================
+   Design tokens — "Blackboard & brass"
+   Six named colours; everything else is derived from them.
+   ===================================================================== */
+:root {
+  --night: #141a25;   /* page ground: deep ink blue, not neutral black   */
+  --slate: #1d2432;   /* floating panel surface                          */
+  --rule:  #313a4d;   /* borders, grid lines, dividers                   */
+  --chalk: #ede7d9;   /* primary text; the ε circle is drawn "in chalk"  */
+  --fog:   #98a1b2;   /* secondary text, axis labels                     */
+  --brass: #d9a950;   /* the single accent: primary action, focus, ε line */
+
+  /* derived */
+  --board: #10151e;           /* data canvas ground (hero) */
+  --raised: #252d3d;          /* buttons, inputs */
+  --noise: #8d94a4;
+  --unvisited: #4c5567;
+  --brass-soft: rgba(217, 169, 80, 0.16);
+
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* type scale (1.125 ratio) */
+  --fs-xs: 12px;
+  --fs-sm: 13.5px;
+  --fs-md: 15px;
+  --fs-lg: 17px;
+  --fs-xl: 22px;
+
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--night);
+  color: var(--chalk);
+  font: var(--fs-md)/1.5 var(--font);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  overflow: hidden;
+}
+a { color: var(--brass); }
+b, strong { font-weight: 600; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
+
+/* ---------- header ---------- */
+.site-header {
+  display: flex; align-items: center; gap: 24px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.site-header h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
+.lede { margin: 1px 0 0; max-width: none; color: var(--fog); font-size: var(--fs-sm); line-height: 1.4; }
+.lede b { color: var(--chalk); }
+.title-block { flex: 1; min-width: 0; }
+.status-block { margin-left: auto; flex: none; }
+.pill {
+  display: inline-block; padding: 4px 12px; border-radius: 999px;
+  border: 1px solid var(--rule); background: var(--slate);
+  font-size: var(--fs-sm); white-space: nowrap;
+}
+.pill[data-state="running"] { border-color: var(--brass); color: var(--brass); }
+.pill[data-state="converged"] { border-color: #2fbf8f; color: #7fdcb9; }
+
+/* ---------- two independently scrolling halves ---------- */
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 16px;
+  min-height: 0;
+}
+.col {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 2px 6px 12px 2px;
+  scrollbar-color: var(--rule) transparent;
+}
+.panel {
+  background: var(--slate);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 12px 16px 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  min-width: 0;
+}
+.panel-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.panel h2 { margin: 0; font-size: var(--fs-lg); font-weight: 650; }
+.panel h3 { margin: 14px 0 4px; font-size: var(--fs-md); font-weight: 600; }
+.num {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 6px;
+  border-radius: 6px; background: var(--raised); color: var(--fog);
+  font-size: var(--fs-xs); font-weight: 600; vertical-align: 2px;
+}
+.meta { margin-left: auto; color: var(--fog); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.hint, .help { color: var(--fog); font-size: var(--fs-xs); margin: 2px 0 0; line-height: 1.4; }
+.hint { margin-bottom: 8px; }
+
+/* ---------- panel 1: data canvas (the hero) ---------- */
+.data-layout { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.board-wrap {
+  flex: 1 1 300px;
+  max-width: max(300px, calc(100vh - 270px));
+  aspect-ratio: 1 / 1;
+  position: relative;
+}
+#board {
+  width: 100%; height: 100%; display: block;
+  background: var(--board);
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+  cursor: crosshair;
+  touch-action: manipulation;
+}
+.rail { flex: 0 0 196px; max-width: 196px; display: flex; flex-direction: column; gap: 10px; }
+.rail h3 { margin: 0 0 2px; font-size: var(--fs-sm); color: var(--fog); font-weight: 600; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; font-size: 12.5px; }
+.legend li { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.legend svg { flex: none; }
+.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.btn-grid .wide { grid-column: span 2; }
+.rail .btn { padding: 5px 6px; }
+
+/* ---------- controls ---------- */
+.btn {
+  font: inherit; font-size: var(--fs-sm);
+  color: var(--chalk); background: var(--raised);
+  border: 1px solid var(--rule); border-radius: 8px;
+  padding: 6px 10px; cursor: pointer; line-height: 1.2;
+}
+.btn:hover:not(:disabled) { border-color: var(--fog); }
+.btn:disabled { opacity: 0.42; cursor: not-allowed; }
+.btn.primary { background: var(--brass); border-color: var(--brass); color: #1b1407; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: #e6ba68; }
+.btn kbd { font: inherit; font-size: 11px; opacity: 0.65; margin-left: 4px; }
+
+.transport { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.panel h2.transport-title { margin-right: 10px; }
+.transport .btn { min-width: 64px; }
+.speed { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: var(--fs-sm); color: var(--fog); }
+.speed output { color: var(--chalk); min-width: 7ch; font-variant-numeric: tabular-nums; }
+
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin-top: 12px; }
+.field label, .field .label { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
+.field .row { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.field input[type="range"] { flex: 1; min-width: 0; }
+.field.compact .row { margin-top: 0; }
+input[type="range"] { accent-color: var(--brass); height: 22px; }
+input[type="number"], select {
+  font: inherit; font-size: var(--fs-sm); color: var(--chalk);
+  background: var(--board); border: 1px solid var(--rule); border-radius: 6px;
+  padding: 3px 6px; font-variant-numeric: tabular-nums;
+}
+input[type="number"] { width: 72px; }
+select { padding: 4px 6px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); }
+.check input { accent-color: var(--brass); width: 16px; height: 16px; }
+.rail .field output { margin-left: auto; font-weight: 400; color: var(--fog); font-variant-numeric: tabular-nums; }
+
+.warn { margin: 10px 0 0; padding: 0; list-style: none; font-size: var(--fs-xs); color: #f0c987; }
+.warn li::before { content: "! "; font-weight: 700; }
+.notice {
+  margin-top: 10px; min-height: 1.5em; font-size: var(--fs-sm);
+  padding: 6px 10px; border-radius: 8px; background: var(--board); color: var(--fog);
+  border-left: 3px solid var(--rule);
+}
+.notice.flash { border-left-color: var(--brass); color: var(--chalk); }
+
+/* ---------- definitions ---------- */
+details > summary { cursor: pointer; font-weight: 650; font-size: var(--fs-lg); }
+details > summary::marker { color: var(--fog); }
+.defs dl { margin: 10px 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: var(--fs-sm); }
+.defs dt { font-weight: 600; }
+.defs dd { margin: 0; color: #d6d0c3; min-width: 0; overflow-wrap: anywhere; }
+.formula { font-variant-numeric: tabular-nums; color: var(--chalk); }
+.formula i, .math i { font-style: italic; }
+.defs .note { font-size: var(--fs-xs); color: var(--fog); margin: 10px 0 0; }
+
+/* ---------- panel 3: model state ---------- */
+.step-msg { margin: 0; font-size: var(--fs-md); min-height: 3em; }
+.math {
+  margin-top: 8px; padding: 8px 12px; border-radius: 8px;
+  background: var(--board); border: 1px solid var(--rule);
+  font-size: var(--fs-sm); line-height: 1.7; font-variant-numeric: tabular-nums;
+  overflow-x: auto;
+}
+.math .line { white-space: nowrap; }
+.math .verdict { color: var(--brass); font-weight: 600; }
+.math .dim { color: var(--fog); }
+.math .ok { color: #7fdcb9; }
+.math .no { color: #f39a8a; }
+
+.counters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.counter { background: var(--board); border-radius: 8px; padding: 6px 8px; border: 1px solid var(--rule); }
+.counter .v { font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.counter .k { font-size: var(--fs-xs); color: var(--fog); }
+
+.queue-head { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
+.queue-head h3 { margin: 0; }
+.queue {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  min-height: 38px; margin-top: 4px; padding: 6px 8px;
+  background: var(--board); border: 1px solid var(--rule); border-radius: 8px;
+  font-family: var(--mono); font-size: 12px;
+}
+.queue .end { color: var(--fog); font-family: var(--font); font-size: var(--fs-xs); }
+.chip { padding: 1px 6px; border-radius: 5px; background: var(--raised); border: 1px solid var(--rule); }
+.chip.new { border-color: var(--brass); color: var(--brass); animation: chip-in 0.35s ease-out; }
+.chip.out { text-decoration: line-through; opacity: 0.6; animation: chip-out 0.45s ease-in; }
+.chip.more { background: none; border-style: dashed; color: var(--fog); }
+@keyframes chip-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes chip-out { from { transform: translateX(8px); opacity: 1; } to { transform: none; opacity: 0.6; } }
+
+.table-wrap {
+  position: relative; margin-top: 4px; max-height: 250px; overflow: auto; contain: content;
+  border: 1px solid var(--rule); border-radius: 8px; background: var(--board);
+}
+.trow {
+  display: grid; grid-template-columns: 13% 12% 12% 17% 10% minmax(0, 1fr);
+  font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums;
+  border-top: 1px solid rgba(49, 58, 77, 0.6);
+  content-visibility: auto; contain-intrinsic-size: auto 21px;
+}
+.trow > span { padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.trow .r { text-align: right; }
+.trow.thead {
+  position: sticky; top: 0; z-index: 1; content-visibility: visible; border-top: 0;
+  background: var(--raised); font-family: var(--font); font-weight: 600; font-size: var(--fs-xs); color: var(--fog);
+}
+.trow.thead > span { padding: 5px 8px; }
+.trow.changed { background: var(--brass-soft); }
+.trow.current { background: rgba(217, 169, 80, 0.3); box-shadow: inset 3px 0 0 var(--brass); }
+.swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.swatch.ring { background: none !important; border: 2px solid; width: 10px; height: 10px; }
+.st-unvisited { color: var(--fog); }
+.st-queued { color: var(--brass); }
+
+.log { list-style: none; margin: 4px 0 0; padding: 0; font-size: var(--fs-sm); }
+.log li { padding: 5px 0; border-top: 1px solid var(--rule); display: grid; grid-template-columns: 4.5ch 1fr; gap: 8px; }
+.log li:first-child { border-top: 0; color: var(--chalk); }
+.log li + li { color: var(--fog); }
+.log .s { font-family: var(--mono); font-size: 12px; color: var(--fog); text-align: right; padding-top: 1px; }
+.empty { color: var(--fog); font-size: var(--fs-sm); }
+
+/* ---------- panel 4: charts ---------- */
+.lead-note { margin: 0 0 8px; font-size: var(--fs-sm); color: #d6d0c3; }
+.series { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 6px; padding: 0; list-style: none; font-size: var(--fs-sm); }
+.series li { display: flex; align-items: center; gap: 6px; }
+.series b { font-variant-numeric: tabular-nums; }
+.chart { width: 100%; display: block; background: var(--board); border: 1px solid var(--rule); border-radius: 8px; }
+#convChart { height: 230px; }
+#kdChart { height: 190px; }
+.kd-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; font-size: var(--fs-sm); color: var(--fog); }
+
+/* ---------- tests ---------- */
+.tests table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); margin-top: 8px; }
+.tests th, .tests td { text-align: left; padding: 4px 6px; border-top: 1px solid var(--rule); vertical-align: top; }
+.tests th { color: var(--fog); font-weight: 600; }
+.tests td.pass { color: #7fdcb9; font-weight: 600; }
+.tests td.fail { color: #f39a8a; font-weight: 600; }
+
+/* ---------- footer ---------- */
+footer {
+  padding: 6px 20px; border-top: 1px solid var(--rule);
+  font-size: var(--fs-xs); color: var(--fog);
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+}
+footer .course { color: var(--chalk); font-weight: 600; }
+footer .spacer { margin-left: auto; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- single column below ~900 px ---------- */
+@media (max-width: 900px) {
+  body { display: block; height: auto; overflow: auto; }
+  .site-header { flex-wrap: wrap; }
+  main { grid-template-columns: minmax(0, 1fr); }
+  .col { overflow: visible; padding-right: 2px; }
+  .board-wrap { max-width: min(100%, 640px); }
+  .rail { max-width: none; flex: 1 1 100%; }
+  .counters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .field-grid { grid-template-columns: 1fr; }
+  .defs dl { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="title-block">
+    <h1>DBSCAN, one region query at a time</h1>
+    <p class="lede">DBSCAN groups points that sit in <b>crowded regions</b> and marks isolated points as <b>noise</b>, without being told how many clusters to find.
+      It needs only two settings: a radius <b>ε</b> and a minimum neighbour count <b>MinPts</b>.
+      Press <b>Step</b> to watch it examine one point at a time and decide whether that point is <b>core</b>, <b>border</b> or <b>noise</b>.</p>
+  </div>
+  <div class="status-block"><span id="runStatus" class="pill" role="status">Ready</span></div>
+</header>
+
+<main>
+  <!-- ================= LEFT HALF ================= -->
+  <div class="col" id="leftCol">
+
+    <section class="panel" aria-labelledby="h-data">
+      <div class="panel-head">
+        <h2 id="h-data"><span class="num">1</span>Data canvas</h2>
+        <span class="meta" id="dataInfo">0 points</span>
+      </div>
+      <div class="data-layout">
+        <div class="board-wrap">
+          <canvas id="board" tabindex="0" role="img"
+            aria-label="Scatter plot of the dataset. Use arrow keys to move the cursor and Enter to add or remove a point."></canvas>
+        </div>
+
+        <div class="rail">
+          <div>
+            <h3>Legend <span class="help" style="font-weight:400">· colour = cluster</span></h3>
+            <ul class="legend">
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#4c5567"/></svg>Unprocessed</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#4c5567"/><circle cx="9" cy="9" r="6.5" fill="none" stroke="#ede7d9" stroke-width="1.2" stroke-dasharray="2 2"/></svg>In queue</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="#56B4E9"/></svg>Core</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="#56B4E9" stroke-width="1.6"/><circle cx="9" cy="9" r="2.3" fill="#56B4E9"/></svg>Border</li>
+              <li><svg width="18" height="18" aria-hidden="true"><path d="M5 5 L13 13 M13 5 L5 13" stroke="#8d94a4" stroke-width="1.8"/></svg>Noise</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#ede7d9" stroke-width="1.3" stroke-dasharray="3 2"/><circle cx="9" cy="9" r="2" fill="#ede7d9"/></svg>Current + ε</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3>Generate data</h3>
+            <div class="field">
+              <label for="nRange">Points <output id="nOut" for="nRange">240</output></label>
+              <div class="row"><input type="range" id="nRange" min="10" max="500" step="10" value="240"></div>
+            </div>
+            <div class="field">
+              <label for="noiseRange">Noise level <output id="noiseOut" for="noiseRange">0.15</output></label>
+              <div class="row"><input type="range" id="noiseRange" min="0" max="1" step="0.05" value="0.15"></div>
+            </div>
+            <div class="btn-grid" style="margin-top:6px">
+              <button class="btn" data-gen="uniform" type="button">Uniform</button>
+              <button class="btn" data-gen="blobs" type="button">Blobs</button>
+              <button class="btn" data-gen="moons" type="button">Two moons</button>
+              <button class="btn" data-gen="circles" type="button">Circles</button>
+              <button class="btn wide" data-gen="worked" type="button">Worked example (12)</button>
+            </div>
+          </div>
+
+          <div class="btn-grid">
+            <button class="btn" id="clearBtn" type="button">Clear</button>
+            <button class="btn" id="resetRunBtn" type="button">Reset run</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-controls">
+      <div class="transport">
+        <h2 id="h-controls" class="transport-title"><span class="num">2</span>Hyperparameters &amp; controls</h2>
+        <button class="btn primary" id="stepBtn" type="button" title="Run exactly one region query (S)">Step<kbd>S</kbd></button>
+        <button class="btn" id="playBtn" type="button" title="Keep stepping until every point is labelled (P)">Play<kbd>P</kbd></button>
+        <button class="btn" id="pauseBtn" type="button" title="Stop auto-play (P)">Pause</button>
+        <button class="btn" id="resetBtn" type="button" title="Keep the points, start the algorithm again (R)">Reset<kbd>R</kbd></button>
+        <label class="speed" for="speedRange">Speed
+          <input type="range" id="speedRange" min="1" max="40" step="1" value="8">
+          <output id="speedOut" for="speedRange">8 steps/s</output>
+        </label>
+      </div>
+      <p class="help">Step = one point is taken, its ε-neighbourhood is counted, and the labels are updated. Play repeats that until nothing is left. Shortcuts: S = Step, P = Play/Pause, R = Reset. On the canvas, arrow keys move a cross and Enter adds or deletes a point.</p>
+
+      <div class="field-grid">
+        <div class="field">
+          <label for="epsRange">ε (eps) <span class="help">radius</span></label>
+          <div class="row">
+            <input type="range" id="epsRange" min="0" max="3" step="0.01" value="0.5">
+            <input type="number" id="epsNum" min="0" max="10" step="0.01" value="0.5" aria-label="ε value">
+          </div>
+          <p class="help">How close two points must be to count as neighbours. Larger ε merges clusters; smaller ε creates more noise.</p>
+        </div>
+        <div class="field">
+          <label for="minPtsRange">MinPts <span class="help">density threshold</span></label>
+          <div class="row">
+            <input type="range" id="minPtsRange" min="1" max="20" step="1" value="5">
+            <input type="number" id="minPtsNum" min="1" max="20" step="1" value="5" aria-label="MinPts value">
+          </div>
+          <p class="help">How many points (itself included) must lie within ε for a point to be core. Larger MinPts demands denser clusters.</p>
+        </div>
+        <div class="field">
+          <label for="metricSel">Distance metric</label>
+          <div class="row"><select id="metricSel">
+            <option value="euclidean">Euclidean (straight line)</option>
+            <option value="manhattan">Manhattan (city block)</option>
+          </select></div>
+          <p class="help" id="metricHelp"></p>
+        </div>
+        <div class="field">
+          <span class="label">Display</span>
+          <div class="row"><label class="check" style="font-weight:400"><input type="checkbox" id="allEpsChk"> Show ε around every point</label></div>
+          <p class="help">Overlapping circles reveal the dense regions DBSCAN will find.</p>
+        </div>
+      </div>
+
+      <ul class="warn" id="paramWarn"></ul>
+      <div class="notice" id="notice" role="status" aria-live="polite">Choose data, set ε and MinPts, then press Step.</div>
+    </section>
+
+    <details class="panel defs" open>
+      <summary>Definitions: the maths behind each label</summary>
+      <dl>
+        <dt>Distance</dt>
+        <dd><span class="formula" id="formulaDist"></span></dd>
+        <dt>ε-neighbourhood</dt>
+        <dd><span class="formula"><i>N</i><sub>ε</sub>(<i>p</i>) = { <i>q</i> ∈ <i>D</i> : <i>d</i>(<i>p</i>,<i>q</i>) ≤ ε }</span><br>
+          Because <i>d</i>(<i>p</i>,<i>p</i>) = 0, <b>a point is always inside its own neighbourhood and counts toward MinPts</b>.</dd>
+        <dt>Core point</dt>
+        <dd><span class="formula">|<i>N</i><sub>ε</sub>(<i>p</i>)| ≥ MinPts</span>: the point sits in a dense region.</dd>
+        <dt>Border point</dt>
+        <dd>Not core itself, but it lies inside <i>N</i><sub>ε</sub> of at least one core point. It joins that cluster but cannot grow it.</dd>
+        <dt>Noise point</dt>
+        <dd>Neither core nor border. A point may be labelled noise early and be re-labelled border later.</dd>
+        <dt>Directly density-reachable</dt>
+        <dd><i>q</i> is directly density-reachable from <i>p</i> if <i>p</i> is core and <i>q</i> ∈ <i>N</i><sub>ε</sub>(<i>p</i>).</dd>
+        <dt>Density-reachable</dt>
+        <dd>There is a chain <i>p</i> = <i>p</i><sub>1</sub>, <i>p</i><sub>2</sub>, …, <i>p</i><sub>m</sub> = <i>q</i> where each <i>p</i><sub>i+1</sub> is directly density-reachable from <i>p</i><sub>i</sub>.</dd>
+        <dt>Density-connected</dt>
+        <dd><i>p</i> and <i>q</i> are both density-reachable from some point <i>o</i>.</dd>
+        <dt>Cluster</dt>
+        <dd>A <b>maximal</b> set of density-connected points: if <i>p</i> is in the cluster and <i>q</i> is density-reachable from <i>p</i>, then <i>q</i> is in the cluster too.</dd>
+        <dt>Why a queue?</dt>
+        <dd>The queue (frontier) holds points found near a core point that still need their own region query. Every core point it reveals adds more points, so the cluster spreads along chains of density-reachability until the queue is empty.</dd>
+      </dl>
+      <p class="note">Each region query here checks every point, so a full run costs O(n²) distance computations. Neighbour test uses d ≤ ε with a 10⁻⁹ tolerance for floating-point rounding.</p>
+    </details>
+  </div>
+
+  <!-- ================= RIGHT HALF ================= -->
+  <div class="col" id="rightCol">
+
+    <section class="panel" aria-labelledby="h-state">
+      <div class="panel-head">
+        <h2 id="h-state"><span class="num">3</span>Model state</h2>
+        <span class="meta" id="stepInfo">step 0</span>
+      </div>
+      <p class="hint">DBSCAN learns no weights. Its entire state is the label of every point, which points have been visited, and the expansion queue.</p>
+
+      <p class="step-msg" id="stepMsg" aria-live="polite"></p>
+      <div class="math" id="mathBox"></div>
+
+      <div class="counters" id="counters"></div>
+
+      <div class="queue-head">
+        <h3>Expansion queue (frontier)</h3>
+        <span class="meta" id="queueInfo">empty</span>
+      </div>
+      <div class="queue" id="queueBox" aria-label="Expansion queue"></div>
+      <p class="help">Points enter at the back when a core point finds them; the front point is taken on the next step.</p>
+
+      <h3>Label table</h3>
+      <div class="table-wrap" id="tableWrap" role="table" aria-label="Label table">
+        <div class="trow thead" role="row"><span role="columnheader">Point</span><span class="r" role="columnheader">x</span><span class="r" role="columnheader">y</span><span role="columnheader">Status</span><span class="r" role="columnheader">|N<sub>ε</sub>|</span><span role="columnheader">Label</span></div>
+        <div id="labelBody" role="rowgroup"></div>
+      </div>
+      <p class="help">Rows changed by the latest step are highlighted; the darker row is the point just queried.</p>
+
+      <h3>Step log</h3>
+      <ol class="log" id="logList"></ol>
+    </section>
+
+    <section class="panel" aria-labelledby="h-conv">
+      <div class="panel-head"><h2 id="h-conv"><span class="num">4</span>Convergence progress</h2></div>
+      <p class="lead-note">DBSCAN does not minimize a loss function, so this chart tracks how the algorithm converges toward a complete labeling.</p>
+      <ul class="series" id="seriesLegend"></ul>
+      <canvas class="chart" id="convChart" role="img" aria-label="Line chart of unprocessed, assigned and noise points and clusters found per step"></canvas>
+      <p class="help">One step visits exactly one point, so "unprocessed" falls by one per step and reaches 0 when the run is complete. Noise can fall later, when a cluster adopts a noise point as a border point.</p>
+
+      <h3>Choosing ε: the k-distance plot</h3>
+      <p class="help">For every point, the distance to its k-th nearest point (k = MinPts, counting itself), sorted from largest to smallest. A point is core exactly when its k-distance ≤ ε, so everything under the brass line will be core. A good ε sits near the "elbow", where the curve bends sharply.</p>
+      <canvas class="chart" id="kdChart" role="img" aria-label="Sorted k-distance plot with the current ε as a horizontal line" style="margin-top:6px"></canvas>
+      <div class="kd-foot">
+        <span id="kdInfo"></span>
+        <button class="btn" id="elbowBtn" type="button">Use elbow ε</button>
+      </div>
+    </section>
+
+    <details class="panel tests" id="testsBox">
+      <summary id="testsSummary">Built-in tests</summary>
+      <p class="help">These run the same pure DBSCAN generator the page uses, on hand-checked inputs, when the page loads.</p>
+      <div style="overflow-x:auto"><table id="testsTable"></table></div>
+      <button class="btn" id="rerunTestsBtn" type="button" style="margin-top:8px">Run tests again</button>
+    </details>
+  </div>
+</main>
+
+<footer>
+  <span>Thanut Chaipanonwich (66010346)</span>
+  <span>Panthach Pannil (66010559)</span>
+  <span>Sitthiwat Kulchanacharoen (66010850)</span>
+  <span>Nattawut Chaturaponkul (66050146)</span>
+  <span class="course">CE KMITL</span>
+  <a class="spacer" href="https://github.com/hhonn/CE-DA-Interactive-Algorithm-Visualizer-Web-Page">Source on GitHub</a>
+</footer>
+
+<script>
+"use strict";
+/* =======================================================================
+   PURE LAYER — no DOM access below this line until "UI LAYER".
+   Algorithm, distance metrics, data generators, k-distance, self-tests.
+   ======================================================================= */
+/* ==== PURE:BEGIN ==== */
+
+const WORLD = 10;              // data lives in the square [0, 10] × [0, 10]
+const EPS_TOLERANCE = 1e-9;    // d ≤ ε is tested as d ≤ ε + 1e-9 (floating-point safety)
+
+const LABEL_NONE = 0;          // not labelled yet
+const LABEL_NOISE = -1;        // noise (for now)
+                               // 1, 2, 3, ... = cluster id
+
+const METRICS = {
+  euclidean: {
+    name: "Euclidean",
+    // d(p,q) = sqrt((px − qx)² + (py − qy)²)
+    dist(p, q) { const dx = p.x - q.x, dy = p.y - q.y; return Math.sqrt(dx * dx + dy * dy); },
+  },
+  manhattan: {
+    name: "Manhattan",
+    // d(p,q) = |px − qx| + |py − qy|
+    dist(p, q) { return Math.abs(p.x - q.x) + Math.abs(p.y - q.y); },
+  },
+};
+
+/**
+ * regionQuery — computes the ε-neighbourhood
+ *   N_ε(p) = { q ∈ D : d(p,q) ≤ ε }
+ * p itself is included because d(p,p) = 0. Brute force: O(n).
+ * Returns neighbour ids (ascending) and their distances.
+ */
+function regionQuery(points, p, eps, dist) {
+  const ids = [], dists = [];
+  const P = points[p];
+  for (let q = 0; q < points.length; q++) {
+    const d = dist(P, points[q]);
+    if (d <= eps + EPS_TOLERANCE) { ids.push(q); dists.push(d); }
+  }
+  return { ids, dists };
+}
+
+/**
+ * dbscanSteps — DBSCAN (Ester, Kriegel, Sander & Xu, 1996) as a generator.
+ *
+ * Every yield corresponds to exactly ONE region query (one point visited),
+ * together with all of its consequences. Step and Play both call .next().
+ *
+ *   core(p)   ⇔ |N_ε(p)| ≥ MinPts
+ *   border(p) ⇔ ¬core(p) ∧ ∃ core c : p ∈ N_ε(c)
+ *   noise(p)  ⇔ neither
+ *
+ * Queue policy (equivalent to the textbook pseudocode, but one query per step):
+ *   when a core point's neighbourhood is scanned,
+ *     - an unvisited neighbour that is not queued yet is pushed on the queue;
+ *     - a visited neighbour labelled NOISE is re-labelled as a border point of C
+ *       immediately (the textbook version would push it and label it on pop);
+ *     - visited neighbours that already belong to a cluster are skipped.
+ *   Because only unvisited points are queued, every pop triggers a region query.
+ *
+ * Each yielded record is plain data (JSON-serialisable) — see STEP RECORD below.
+ * The return value (when done) is { clusters, labels, core }.
+ */
+function* dbscanSteps(points, eps, minPts, metric = "euclidean") {
+  const n = points.length;
+  const dist = METRICS[metric].dist;
+  const visited = new Array(n).fill(false);
+  const label = new Array(n).fill(LABEL_NONE);
+  const core = new Array(n).fill(false);
+  const nCount = new Array(n).fill(null);   // |N_ε(p)| once p has been queried
+  const inQueue = new Array(n).fill(false);
+  let queue = [];
+  let head = 0;                              // queue front index (FIFO)
+  let C = 0;                                 // clusters found so far
+  let step = 0;
+  let visitedCount = 0;
+
+  function counts() {
+    let assigned = 0, noise = 0, coreN = 0;
+    for (let i = 0; i < n; i++) {
+      if (label[i] > 0) { assigned++; if (core[i]) coreN++; }
+      else if (label[i] === LABEL_NOISE) noise++;
+    }
+    return { remaining: n - visitedCount, assigned, noise, clusters: C,
+             core: coreN, border: assigned - coreN };
+  }
+
+  // Scan the neighbourhood of a core point that belongs to cluster c.
+  function absorb(neighbours, c) {
+    const enqueued = [], adopted = [];
+    for (const j of neighbours) {
+      if (!visited[j]) {
+        if (!inQueue[j]) { queue.push(j); inQueue[j] = true; enqueued.push(j); }
+      } else if (label[j] === LABEL_NOISE) {
+        label[j] = c;               // noise → border of cluster c
+        adopted.push(j);
+      }
+    }
+    return { enqueued, adopted };
+  }
+
+  /* STEP RECORD
+     { step, phase: "seed" | "expand", point, eps, minPts, metric,
+       neighbours: number[], neighbourDists: number[], count, isCore,
+       cluster (−1 = noise), newCluster, previousLabel,
+       enqueued: number[], adopted: number[], changed: number[],
+       labels: number[], visited: boolean[], core: boolean[], nCount: (number|null)[],
+       queue: number[]  (front first, after this step),
+       counts: { remaining, assigned, noise, clusters, core, border } } */
+  function record(base) {
+    return Object.assign(base, {
+      step, eps, minPts, metric,
+      labels: label.slice(), visited: visited.slice(), core: core.slice(),
+      nCount: nCount.slice(), queue: queue.slice(head), counts: counts(),
+    });
+  }
+
+  // Visit point p: mark visited and run its single region query.
+  function visit(p) {
+    visited[p] = true; visitedCount++; step++;
+    const r = regionQuery(points, p, eps, dist);
+    nCount[p] = r.ids.length;
+    return r;
+  }
+
+  for (let p = 0; p < n; p++) {
+    if (visited[p]) continue;
+
+    // ---- outer loop: an unvisited point not reached by any cluster ----
+    const r = visit(p);
+    if (r.ids.length < minPts) {
+      label[p] = LABEL_NOISE;                         // may become border later
+      yield record({ phase: "seed", point: p, neighbours: r.ids, neighbourDists: r.dists,
+        count: r.ids.length, isCore: false, cluster: LABEL_NOISE, newCluster: false,
+        previousLabel: LABEL_NONE, enqueued: [], adopted: [], changed: [p] });
+      continue;
+    }
+
+    C += 1;                                           // p is core → new cluster C
+    core[p] = true;
+    label[p] = C;
+    const a = absorb(r.ids, C);
+    yield record({ phase: "seed", point: p, neighbours: r.ids, neighbourDists: r.dists,
+      count: r.ids.length, isCore: true, cluster: C, newCluster: true,
+      previousLabel: LABEL_NONE, enqueued: a.enqueued, adopted: a.adopted,
+      changed: [p, ...a.adopted] });
+
+    // ---- expandCluster: breadth-first over density-reachable points ----
+    while (head < queue.length) {
+      const q = queue[head++];
+      inQueue[q] = false;
+      const rq = visit(q);                            // q is always unvisited here
+      const previousLabel = label[q];
+      label[q] = C;                                   // q is density-reachable from a core point
+      let b = { enqueued: [], adopted: [] };
+      if (rq.ids.length >= minPts) {                  // q is core → frontier grows
+        core[q] = true;
+        b = absorb(rq.ids, C);
+      }
+      yield record({ phase: "expand", point: q, neighbours: rq.ids, neighbourDists: rq.dists,
+        count: rq.ids.length, isCore: core[q], cluster: C, newCluster: false,
+        previousLabel, enqueued: b.enqueued, adopted: b.adopted,
+        changed: [q, ...b.adopted] });
+    }
+    queue = []; head = 0;
+  }
+  return { clusters: C, labels: label.slice(), core: core.slice() };
+}
+
+/** Drain the generator (used by tests). */
+function runDbscan(points, eps, minPts, metric = "euclidean") {
+  const it = dbscanSteps(points, eps, minPts, metric);
+  const steps = [];
+  let r;
+  while (!(r = it.next()).done) steps.push(r.value);
+  return { steps, result: r.value };
+}
+
+/**
+ * kDistances — for each point p, kd(p) = distance to its k-th nearest point
+ * in D, counting p itself as the 1st (distance 0). With k = MinPts:
+ *   |N_ε(p)| ≥ MinPts  ⇔  kd(p) ≤ ε,  so the plot shows exactly which points are core.
+ * Returns null when k > n.
+ */
+function kDistances(points, k, metric = "euclidean") {
+  const n = points.length;
+  if (k < 1 || k > n) return null;
+  const dist = METRICS[metric].dist;
+  const kd = new Array(n);
+  const row = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) row[j] = dist(points[i], points[j]);
+    row.sort();
+    kd[i] = row[k - 1];
+  }
+  return kd;
+}
+
+/** Elbow of a descending curve: the point farthest from the chord first→last (normalised axes). */
+function elbowIndex(sortedDesc) {
+  const n = sortedDesc.length;
+  if (n < 3) return -1;
+  const y0 = sortedDesc[0], y1 = sortedDesc[n - 1];
+  const span = (y0 - y1) || 1;
+  let best = -1, bestD = 0;
+  for (let i = 1; i < n - 1; i++) {
+    const x = i / (n - 1), y = (sortedDesc[i] - y1) / span;
+    const d = (1 - x) - y;            // distance to the chord y = 1 − x (up to a constant)
+    if (d > bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+/* ---------------- data generators ---------------- */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function gauss(rng) {
+  let u = 0;
+  while (u === 0) u = rng();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rng());
+}
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const inWorld = (x, y, g) => ({ x: clamp(x, 0.05, WORLD - 0.05), y: clamp(y, 0.05, WORLD - 0.05), g });
+function outliers(count, rng) {
+  const out = [];
+  for (let i = 0; i < count; i++) out.push(inWorld(0.3 + rng() * 9.4, 0.3 + rng() * 9.4, -1));
+  return out;
+}
+
+// Worked example: small enough to label by hand (ε = 1, MinPts = 3, Euclidean).
+const KNOWN_ANSWER = {
+  eps: 1, minPts: 3,
+  points: [
+    { x: 3, y: 2 },                                               // p0: border of C1 (noise first)
+    { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }, { x: 2, y: 2 }, // p1–p4: core C1
+    { x: 8, y: 7 },                                               // p5: border of C2 (noise first)
+    { x: 6, y: 6 }, { x: 7, y: 6 }, { x: 6, y: 7 }, { x: 7, y: 7 }, // p6–p9: core C2
+    { x: 4, y: 8 }, { x: 9, y: 2 },                               // p10, p11: noise
+  ],
+  // expected final labels and core flags
+  labels: [1, 1, 1, 1, 1, 2, 2, 2, 2, 2, -1, -1],
+  core:   [false, true, true, true, true, false, true, true, true, true, false, false],
+};
+
+const GENERATORS = {
+  uniform(n, noise, rng) {
+    const pts = [];
+    for (let i = 0; i < n; i++) pts.push(inWorld(0.3 + rng() * 9.4, 0.3 + rng() * 9.4, 0));
+    return pts;
+  },
+  blobs(n, noise, rng) {
+    const k = 3 + Math.floor(rng() * 3);             // 3–5 blobs
+    const centers = [];
+    for (let tries = 0; centers.length < k && tries < 500; tries++) {
+      const c = { x: 1.8 + rng() * 6.4, y: 1.8 + rng() * 6.4 };
+      if (centers.every((o) => Math.hypot(o.x - c.x, o.y - c.y) > 2.6)) centers.push(c);
+    }
+    const nOut = Math.round(n * 0.08 * noise);
+    const sigma = 0.3 + 0.7 * noise;
+    const pts = [];
+    for (let i = 0; i < n - nOut; i++) {
+      const g = i % centers.length, c = centers[g];
+      pts.push(inWorld(c.x + gauss(rng) * sigma * 0.6, c.y + gauss(rng) * sigma * 0.6, g));
+    }
+    return pts.concat(outliers(nOut, rng));
+  },
+  moons(n, noise, rng) {
+    // Unit moons: (cos t, sin t) and (1 − cos t, 0.5 − sin t), t ∈ [0, π], scaled by r.
+    const r = 2.4, sigma = 0.6 * noise;
+    const nOut = Math.round(n * 0.1 * noise);
+    const m = n - nOut, m0 = Math.ceil(m / 2), pts = [];
+    for (let i = 0; i < m; i++) {
+      const g = i < m0 ? 0 : 1;
+      // stratified angle: evenly spaced with jitter, so the arc has no accidental gaps
+      const t = (Math.PI * ((g === 0 ? i : i - m0) + rng())) / (g === 0 ? m0 : m - m0);
+      const ux = g === 0 ? Math.cos(t) : 1 - Math.cos(t);
+      const uy = g === 0 ? Math.sin(t) : 0.5 - Math.sin(t);
+      pts.push(inWorld(3.8 + r * ux + gauss(rng) * sigma, 4.4 + r * uy + gauss(rng) * sigma, g));
+    }
+    return pts.concat(outliers(nOut, rng));
+  },
+  circles(n, noise, rng) {
+    const sigma = 0.6 * noise;
+    const nOut = Math.round(n * 0.1 * noise);
+    const m = n - nOut, m0 = Math.round(m * 0.62), pts = [];
+    for (let i = 0; i < m; i++) {
+      const g = i < m0 ? 0 : 1;
+      const R = g === 0 ? 3.3 : 1.4;
+      // stratified angle: evenly spaced with jitter, so the ring has no accidental gaps
+      const t = (2 * Math.PI * ((g === 0 ? i : i - m0) + rng())) / (g === 0 ? m0 : m - m0);
+      pts.push(inWorld(5 + R * Math.cos(t) + gauss(rng) * sigma, 5 + R * Math.sin(t) + gauss(rng) * sigma, g));
+    }
+    return pts.concat(outliers(nOut, rng));
+  },
+  worked() {
+    return KNOWN_ANSWER.points.map((p) => ({ ...p }));
+  },
+};
+
+/* ---------------- test-only helper: k-means (to show where it fails) ---------------- */
+function kmeans(points, k, rng, iters = 100) {
+  const cents = [points[Math.floor(rng() * points.length)]];
+  while (cents.length < k) {                           // k-means++ seeding
+    const d2 = points.map((p) => Math.min(...cents.map((c) => (p.x - c.x) ** 2 + (p.y - c.y) ** 2)));
+    let r = rng() * d2.reduce((s, v) => s + v, 0), idx = 0;
+    while (idx < d2.length - 1 && (r -= d2[idx]) > 0) idx++;
+    cents.push(points[idx]);
+  }
+  let assign = new Array(points.length).fill(0);
+  for (let it = 0; it < iters; it++) {
+    assign = points.map((p) => {
+      let best = 0, bd = Infinity;
+      cents.forEach((c, j) => { const d = (p.x - c.x) ** 2 + (p.y - c.y) ** 2; if (d < bd) { bd = d; best = j; } });
+      return best;
+    });
+    for (let j = 0; j < k; j++) {
+      const mem = points.filter((_, i) => assign[i] === j);
+      if (mem.length) cents[j] = { x: mem.reduce((s, p) => s + p.x, 0) / mem.length, y: mem.reduce((s, p) => s + p.y, 0) / mem.length };
+    }
+  }
+  return assign;
+}
+
+/* ---------------- self-tests (pure) ---------------- */
+function runSelfTests() {
+  const tests = [];
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const fmt = (labels) => labels.map((l) => (l === -1 ? "N" : "C" + l)).join(" ");
+  const add = (name, input, expected, actual, pass) => tests.push({ name, input, expected, actual, pass: !!pass });
+
+  // T1 known answer
+  {
+    const K = KNOWN_ANSWER;
+    const { steps, result } = runDbscan(K.points, K.eps, K.minPts);
+    add("Known-answer (worked example)", "12 points, ε = 1, MinPts = 3",
+      fmt(K.labels) + "; 8 core", fmt(result.labels) + "; " + result.core.filter(Boolean).length + " core",
+      same(result.labels, K.labels) && same(result.core, K.core) && steps.length === 12);
+    const relabels = steps.flatMap((s) => s.adopted);
+    add("Noise re-labelled as border", "worked example",
+      "p0 adopted by C1, p5 adopted by C2", relabels.map((i) => "p" + i).join(", ") || "none",
+      same(relabels, [0, 5]) && steps[0].cluster === -1 && steps[5].cluster === -1);
+  }
+  // T2 / T3 boundary d = ε
+  {
+    const pts = [{ x: 1, y: 1 }, { x: 2, y: 1 }];
+    const a = runDbscan(pts, 1, 2).result, b = runDbscan(pts, 0.99, 2).result;
+    add("Boundary: d = ε counts", "(1,1),(2,1); ε = 1, MinPts = 2", "C1 C1, both core",
+      fmt(a.labels) + (a.core.every(Boolean) ? ", both core" : ""), same(a.labels, [1, 1]) && a.core.every(Boolean));
+    add("Boundary: d > ε does not", "same points; ε = 0.99", "N N", fmt(b.labels), same(b.labels, [-1, -1]));
+  }
+  // T4 empty
+  {
+    const { steps, result } = runDbscan([], 0.5, 4);
+    add("Empty dataset", "0 points", "0 steps, 0 clusters", `${steps.length} steps, ${result.clusters} clusters`,
+      steps.length === 0 && result.clusters === 0);
+  }
+  // T5 single point
+  {
+    const a = runDbscan([{ x: 5, y: 5 }], 0.5, 1).result, b = runDbscan([{ x: 5, y: 5 }], 0.5, 2).result;
+    add("Single point", "MinPts = 1 then 2", "C1 (core); N", `${fmt(a.labels)} (${a.core[0] ? "core" : "not core"}); ${fmt(b.labels)}`,
+      same(a.labels, [1]) && a.core[0] && same(b.labels, [-1]));
+  }
+  // T6 duplicates with ε = 0
+  {
+    const r = runDbscan([{ x: 5, y: 5 }, { x: 5, y: 5 }, { x: 1, y: 1 }], 0, 2).result;
+    add("Duplicates with ε = 0", "(5,5),(5,5),(1,1); MinPts = 2", "C1 C1 N", fmt(r.labels), same(r.labels, [1, 1, -1]));
+  }
+  // T7 MinPts > n
+  {
+    const r = runDbscan(GENERATORS.worked(), 5, 13).result;
+    add("MinPts > n", "12 points, ε = 5, MinPts = 13", "all noise, 0 clusters",
+      `${r.labels.filter((l) => l === -1).length} noise, ${r.clusters} clusters`, r.labels.every((l) => l === -1) && r.clusters === 0);
+  }
+  // T8 one region query per step, remaining reaches 0 on the last step
+  {
+    const pts = GENERATORS.blobs(150, 0.4, mulberry32(7));
+    const { steps } = runDbscan(pts, 0.45, 5);
+    const mono = steps.every((s, i) => s.counts.remaining === pts.length - (i + 1));
+    add("One region query per step", "150 blob points", "150 steps; remaining −1 each step, 0 at end",
+      `${steps.length} steps; last remaining = ${steps[steps.length - 1].counts.remaining}`, steps.length === 150 && mono);
+  }
+  // T9 two moons: DBSCAN separates, k-means does not
+  {
+    const pts = GENERATORS.moons(300, 0.1, mulberry32(42));
+    const r = runDbscan(pts, 0.5, 5).result;
+    const acc = (labelsOf) => {
+      const idx = pts.map((p, i) => i).filter((i) => pts[i].g >= 0);
+      let hit = 0;
+      for (const g of [0, 1]) {
+        const mem = idx.filter((i) => pts[i].g === g).map((i) => labelsOf[i]);
+        const tally = {};
+        mem.forEach((l) => { tally[l] = (tally[l] || 0) + 1; });
+        const [bestL, bestC] = Object.entries(tally).sort((a, b) => b[1] - a[1])[0];
+        hit += bestC;
+        acc.major = acc.major || [];
+        acc.major.push(bestL);
+      }
+      const out = { score: hit / idx.length, distinct: acc.major[0] !== acc.major[1] };
+      acc.major = null;
+      return out;
+    };
+    const d = acc(r.labels);
+    const km = acc(kmeans(pts, 2, mulberry32(3)));
+    add("Two moons: DBSCAN vs k-means", "300 moon points, noise 0.1, ε = 0.5, MinPts = 5",
+      "DBSCAN ≥ 95% per moon, 2 distinct clusters; k-means < 90%",
+      `DBSCAN ${(d.score * 100).toFixed(1)}% (${r.clusters} clusters); k-means ${(km.score * 100).toFixed(1)}%`,
+      d.score >= 0.95 && d.distinct && km.score < 0.9);
+  }
+  // T10 metric changes the answer
+  {
+    const pts = [{ x: 0, y: 0 }, { x: 1, y: 1 }];
+    const e = runDbscan(pts, 1.5, 2, "euclidean").result, m = runDbscan(pts, 1.5, 2, "manhattan").result;
+    add("Metric: Euclidean vs Manhattan", "(0,0),(1,1); ε = 1.5, MinPts = 2", "Euclidean C1 C1 (d = 1.41); Manhattan N N (d = 2)",
+      `Euclidean ${fmt(e.labels)}; Manhattan ${fmt(m.labels)}`, same(e.labels, [1, 1]) && same(m.labels, [-1, -1]));
+  }
+  // T11 k-distance ⇔ core
+  {
+    const pts = GENERATORS.uniform(200, 0, mulberry32(11));
+    const eps = 0.7, k = 4;
+    const kd = kDistances(pts, k), r = runDbscan(pts, eps, k).result;
+    const ok = kd.every((v, i) => (v <= eps + EPS_TOLERANCE) === r.core[i]);
+    add("k-distance ≤ ε ⇔ core", "200 uniform points, ε = 0.7, k = MinPts = 4", "agrees for all 200 points",
+      ok ? "agrees for all 200 points" : "mismatch", ok);
+  }
+  return tests;
+}
+/* ==== PURE:END ==== */
+/* =======================================================================
+   UI LAYER — state object, explanations, render functions, events.
+   ======================================================================= */
+const $ = (id) => document.getElementById(id);
+const MAX_POINTS = 500;
+// Okabe–Ito-based hues, lightened where needed to stay visible on the dark board.
+const CLUSTER_COLORS = ["#56B4E9", "#E69F00", "#2FBF8F", "#F0E442", "#D47FB0", "#F2653A", "#9C95FF", "#A6D854"];
+const COLORS = { chalk: "#ede7d9", fog: "#98a1b2", brass: "#d9a950", rule: "#313a4d",
+                 board: "#10151e", noise: "#8d94a4", unvisited: "#4c5567" };
+const clusterColor = (k) => CLUSTER_COLORS[(k - 1) % CLUSTER_COLORS.length];
+const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+const reducedMotion = () => motionQuery.matches;
+const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+/* ---------------- application state ---------------- */
+const state = {
+  points: [],            // [{x, y}] in world units
+  dataVersion: 0,        // bumps on every dataset change (k-distance cache key)
+  eps: 0.5, minPts: 5, metric: "euclidean",
+
+  gen: null,             // live dbscanSteps generator
+  rec: null,             // latest step record
+  queueSet: new Set(),   // ids currently in the queue (for fast drawing)
+  history: [],           // [{step, remaining, assigned, noise, clusters, ...}]
+  log: [],               // newest first, max 10
+  started: false, converged: false,
+
+  playing: false, timer: 0, speed: 8,
+
+  hover: -1, mouse: null, cursor: null, boardFocused: false,
+  epsAnimStart: -1, pulses: [], preview: null, showAllEps: false,
+
+  kd: null, kdKey: "",
+  rows: [], highlighted: [],
+  emptyView: null,
+};
+
+/* ---------------- small helpers ---------------- */
+const f2 = (v) => (Math.abs(v) < 5e-3 ? 0 : v).toFixed(2);
+const sub = (i) => `p<sub>${i}</sub>`;
+const plural = (n, one, many) => (n === 1 ? one : many);
+
+function joinIds(ids, max = 6) {
+  const shown = ids.slice(0, max);
+  const extra = ids.length - shown.length;
+  if (extra > 0) return shown.join(", ") + ` and ${extra} more`;
+  if (shown.length <= 1) return shown.join("");
+  return shown.slice(0, -1).join(", ") + " and " + shown[shown.length - 1];
+}
+
+function zeroCounts(n) {
+  return { remaining: n, assigned: 0, noise: 0, clusters: 0, core: 0, border: 0 };
+}
+
+function labelInfo(label, isCore) {
+  if (label > 0) return { text: `${isCore ? "core" : "border"} · cluster ${label}`, kind: isCore ? "core" : "border", color: clusterColor(label) };
+  if (label === LABEL_NOISE) return { text: "noise", kind: "noise", color: COLORS.noise };
+  return { text: "—", kind: "none", color: null };
+}
+
+/** The state to display: the latest step record, or an all-unvisited view before the first step. */
+function currentView() {
+  return state.rec || state.emptyView;
+}
+
+let noticeTimer = 0;
+function notify(msg) {
+  const el = $("notice");
+  el.textContent = msg;
+  el.classList.add("flash");
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => el.classList.remove("flash"), 2500);
+}
+
+/* ---------------- plain-English explanation of a step ---------------- */
+function describeStep(rec) {
+  const k = rec.count, m = rec.minPts;
+  const nb = `${k} ${plural(k, "neighbour", "neighbours")} within ε = ${f2(rec.eps)} (itself included)`;
+  const queued = (n) => (n === 0 ? "No new points join the queue."
+    : `${n} unvisited ${plural(n, "neighbour joins", "neighbours join")} the queue.`);
+  let s;
+  if (rec.phase === "seed" && !rec.isCore) {
+    s = `Point ${rec.point} has ${nb}. MinPts is ${m}, so it is not a core point. No cluster has reached it, so it is labelled noise for now; it may still become a border point later.`;
+  } else if (rec.phase === "seed") {
+    s = `Point ${rec.point} has ${nb}; MinPts is ${m}, so it is a core point and starts cluster ${rec.cluster}. ${queued(rec.enqueued.length)}`;
+  } else if (rec.isCore) {
+    s = `Took point ${rec.point} from the front of the queue. It has ${nb}, which is ≥ MinPts = ${m}, so it is a core point and cluster ${rec.cluster} keeps growing. ${queued(rec.enqueued.length)}`;
+  } else {
+    s = `Took point ${rec.point} from the front of the queue. It has only ${nb}, fewer than MinPts = ${m}, so it is a border point of cluster ${rec.cluster}: it joins the cluster but cannot extend it.`;
+  }
+  if (rec.adopted.length) {
+    const a = rec.adopted.length;
+    s += ` ${plural(a, "Point", "Points")} ${joinIds(rec.adopted)} ${plural(a, "was", "were")} noise and ${plural(a, "is", "are")} now ${plural(a, "a border point", "border points")} of cluster ${rec.cluster}.`;
+  }
+  return s;
+}
+
+function convergedSummary(c) {
+  return `Converged: every point has been visited. ${c.clusters} ${plural(c.clusters, "cluster", "clusters")}, ${c.core} core, ${c.border} border and ${c.noise} noise ${plural(c.noise, "point", "points")}.`;
+}
+
+/* ---------------- panel 3: math box ---------------- */
+function distanceExpr(P, Q) {
+  if (state.metric === "manhattan" || (state.rec && state.rec.metric === "manhattan"))
+    return `|${f2(P.x)} − ${f2(Q.x)}| + |${f2(P.y)} − ${f2(Q.y)}|`;
+  return `√((${f2(P.x)} − ${f2(Q.x)})² + (${f2(P.y)} − ${f2(Q.y)})²)`;
+}
+
+function renderMath(rec) {
+  const box = $("mathBox");
+  if (!rec) {
+    box.innerHTML = state.points.length
+      ? `<div class="line dim">The next region query will be written out here with real numbers:</div>
+         <div class="line"><i>N</i><sub>ε</sub>(<i>p</i>) = { <i>q</i> : <i>d</i>(<i>p</i>,<i>q</i>) ≤ ${f2(state.eps)} }, &nbsp; core ⇔ |<i>N</i><sub>ε</sub>(<i>p</i>)| ≥ ${state.minPts}</div>`
+      : `<div class="line dim">No data yet. Click the canvas or generate a dataset.</div>`;
+    return;
+  }
+  const pts = state.points, p = rec.point, P = pts[p], eps = rec.eps;
+  const ids = rec.neighbours;
+  const setText = ids.slice(0, 10).map(sub).join(", ") + (ids.length > 10 ? `, … (${ids.length - 10} more)` : "");
+  const lines = [];
+  lines.push(`<div class="line"><i>N</i><sub>ε</sub>(${sub(p)}) = { ${setText} }</div>`);
+
+  let verdict;
+  if (rec.isCore) {
+    verdict = `${sub(p)} is a CORE point` + (rec.newCluster ? `, starts cluster ${rec.cluster}` : `, cluster ${rec.cluster} grows`);
+  } else if (rec.cluster > 0) {
+    verdict = `not core, but reached from cluster ${rec.cluster} → ${sub(p)} is a BORDER point`;
+  } else {
+    verdict = `not core, no cluster reaches it → ${sub(p)} is NOISE (for now)`;
+  }
+  const cmp = rec.count >= rec.minPts ? "≥" : "<";
+  lines.push(`<div class="line">|<i>N</i><sub>ε</sub>(${sub(p)})| = ${rec.count} ${cmp} MinPts = ${rec.minPts} → <span class="verdict">${verdict}</span></div>`);
+
+  // Show the arithmetic for the nearest few neighbours and the nearest point that is NOT a neighbour.
+  const inside = ids.map((q, i) => ({ q, d: rec.neighbourDists[i] })).filter((o) => o.q !== p).sort((a, b) => a.d - b.d);
+  const inSet = new Set(ids);
+  const dist = METRICS[rec.metric].dist;
+  let outside = null;
+  for (let q = 0; q < pts.length; q++) {
+    if (inSet.has(q)) continue;
+    const d = dist(P, pts[q]);
+    if (!outside || d < outside.d) outside = { q, d };
+  }
+  if (!inside.length) lines.push(`<div class="line dim">No other point lies within ε; only ${sub(p)} itself (d = 0) is counted.</div>`);
+  for (const o of inside.slice(0, 3)) {
+    lines.push(`<div class="line"><i>d</i>(${sub(p)}, ${sub(o.q)}) = ${distanceExpr(P, pts[o.q])} = ${f2(o.d)} ≤ ε = ${f2(eps)} <span class="ok">✓ neighbour</span></div>`);
+  }
+  if (inside.length > 3) lines.push(`<div class="line dim">… ${inside.length - 3} more ${plural(inside.length - 3, "neighbour", "neighbours")} inside ε</div>`);
+  if (outside) {
+    lines.push(`<div class="line"><i>d</i>(${sub(p)}, ${sub(outside.q)}) = ${distanceExpr(P, pts[outside.q])} = ${f2(outside.d)} > ε = ${f2(eps)} <span class="no">✗ nearest non-neighbour</span></div>`);
+  }
+  for (const a of rec.adopted) {
+    lines.push(`<div class="line">${sub(a)}: noise → <span class="verdict">border of cluster ${rec.cluster}</span> (it lies in <i>N</i><sub>ε</sub>(${sub(p)}) and ${sub(p)} is core)</div>`);
+  }
+  box.innerHTML = lines.join("");
+}
+
+/* ---------------- panel 3: counters, queue, table, log ---------------- */
+function renderCounters(c) {
+  const items = [["clusters", c.clusters], ["core", c.core], ["border", c.border], ["noise", c.noise], ["unprocessed", c.remaining]];
+  $("counters").innerHTML = items.map(([k, v]) => `<div class="counter"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
+}
+
+function renderQueue(rec) {
+  const q = rec ? rec.queue : [];
+  const fresh = new Set(rec ? rec.enqueued : []);
+  const LIMIT = 80;
+  let html = "";
+  if (rec && rec.phase === "expand") html += `<span class="chip out" title="Taken from the front of the queue in this step">p${rec.point}</span><span class="end">taken ·</span>`;
+  html += `<span class="end">front →</span>`;
+  if (!q.length) html += `<span class="end">(empty)</span>`;
+  for (const id of q.slice(0, LIMIT)) html += `<span class="chip${fresh.has(id) ? " new" : ""}">p${id}</span>`;
+  if (q.length > LIMIT) html += `<span class="chip more">+${q.length - LIMIT} more</span>`;
+  if (q.length) html += `<span class="end">← back</span>`;
+  $("queueBox").innerHTML = html;
+  $("queueInfo").textContent = q.length ? `${q.length} waiting` : "empty";
+}
+
+function rowCells(i, v) {
+  const P = state.points[i];
+  const status = v.visited[i] ? "visited" : state.queueSet.has(i) ? "queued" : "unvisited";
+  const info = labelInfo(v.labels[i], v.core[i]);
+  const sw = info.color
+    ? `<span class="swatch${info.kind === "border" ? " ring" : ""}" style="background:${info.color};border-color:${info.color}"></span>` : "";
+  const nc = v.nCount[i] == null ? "" : v.nCount[i];
+  return `<span role="cell">p${i}</span><span class="r" role="cell">${f2(P.x)}</span><span class="r" role="cell">${f2(P.y)}</span>` +
+         `<span class="st-${status}" role="cell">${status}</span><span class="r" role="cell">${nc}</span><span role="cell">${sw}${info.text}</span>`;
+}
+
+function buildTable() {
+  const body = $("labelBody");
+  if (!state.points.length) {
+    body.innerHTML = `<div class="trow" role="row"><span class="empty" role="cell" style="grid-column: 1 / -1">No points yet.</span></div>`;
+    state.rows = []; state.highlighted = [];
+    return;
+  }
+  const v = currentView();
+  body.innerHTML = state.points.map((_, i) => `<div class="trow" role="row">${rowCells(i, v)}</div>`).join("");
+  state.rows = Array.from(body.children);
+  state.highlighted = [];
+  $("tableWrap").scrollTop = 0;
+}
+
+/** Update only the rows touched by this step and highlight them. */
+function updateRows(rec) {
+  for (const i of state.highlighted) if (state.rows[i]) state.rows[i].className = "trow";
+  const ids = new Set([rec.point, ...rec.changed, ...rec.enqueued]);
+  for (const i of ids) {
+    const row = state.rows[i];
+    if (!row) continue;
+    row.innerHTML = rowCells(i, rec);
+    row.className = i === rec.point ? "trow current" : "trow changed";
+  }
+  state.highlighted = [...ids];
+  // Keep the queried row visible inside the table's own scroller (never the page).
+  // Deferred to the next frame so reading layout does not force an extra reflow on every step.
+  state.scrollRow = rec.point;
+  if (!state.scrollQueued) {
+    state.scrollQueued = true;
+    requestAnimationFrame(() => {
+      state.scrollQueued = false;
+      const row = state.rows[state.scrollRow], wrap = $("tableWrap");
+      if (!row) return;
+      const top = row.offsetTop, head = 26;
+      if (top < wrap.scrollTop + head || top + row.offsetHeight > wrap.scrollTop + wrap.clientHeight)
+        wrap.scrollTop = Math.max(0, top - wrap.clientHeight / 2);
+    });
+  }
+}
+
+function renderLog() {
+  const ol = $("logList");
+  if (!state.log.length) {
+    ol.innerHTML = `<li><span class="s"></span><span class="empty">No steps yet.</span></li>`;
+    return;
+  }
+  ol.innerHTML = state.log.map((e) => `<li><span class="s">${e.step}</span><span>${e.text}</span></li>`).join("");
+}
+
+function renderStatePanel() {
+  const rec = state.rec, v = currentView(), n = state.points.length;
+  $("stepInfo").textContent = `step ${rec ? rec.step : 0} of ${n}`;
+  let msg;
+  if (!n) msg = "Add some points to begin: click the canvas or use a generator.";
+  else if (state.converged) msg = convergedSummary(v.counts) + (rec ? " Last step: " + describeStep(rec) : "");
+  else if (rec) msg = describeStep(rec);
+  else msg = `Ready. The first Step runs a region query on point 0: it counts how many points lie within ε = ${f2(state.eps)}.`;
+  $("stepMsg").textContent = msg;
+  renderMath(rec);
+  renderCounters(v.counts);
+  renderQueue(rec);
+  renderLog();
+}
+
+/* ---------------- panel 1: data canvas (hero) ---------------- */
+const board = $("board");
+const geo = { w: 0, h: 0, ox: 0, oy: 0, size: 0, sc: 1 };
+
+/** Size a canvas's backing store to its CSS box × devicePixelRatio. */
+const canvasSizes = new WeakMap();   // CSS size per canvas, kept fresh by ResizeObserver (avoids a reflow per frame)
+function fitCanvas(canvas) {
+  let size = canvasSizes.get(canvas);
+  if (!size) { size = { w: canvas.clientWidth, h: canvas.clientHeight }; canvasSizes.set(canvas, size); }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.max(1, Math.round(size.w * dpr)), H = Math.max(1, Math.round(size.h * dpr));
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: size.w, h: size.h };
+}
+
+function updateGeometry(w, h) {
+  const padL = 26, padR = 10, padT = 10, padB = 22;
+  const size = Math.max(10, Math.min(w - padL - padR, h - padT - padB));
+  geo.w = w; geo.h = h; geo.size = size; geo.sc = size / WORLD;
+  geo.ox = padL + (w - padL - padR - size) / 2;
+  geo.oy = padT;
+}
+// world y grows upwards, canvas y grows downwards
+const toScreen = (x, y) => [geo.ox + x * geo.sc, geo.oy + (WORLD - y) * geo.sc];
+const toWorld = (px, py) => ({ x: (px - geo.ox) / geo.sc, y: WORLD - (py - geo.oy) / geo.sc });
+const insidePlot = (w) => w.x >= 0 && w.x <= WORLD && w.y >= 0 && w.y <= WORLD;
+
+/** Nearest point within `radius` screen px; ties go to the most recently added (drawn on top). */
+function hitTest(px, py, radius = 9) {
+  let best = -1, bd = radius * radius;
+  for (let i = state.points.length - 1; i >= 0; i--) {
+    const [sx, sy] = toScreen(state.points[i].x, state.points[i].y);
+    const d = (sx - px) ** 2 + (sy - py) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+
+function circlePath(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); }
+
+/** The ε-ball drawn to scale: a circle for Euclidean, a diamond for Manhattan. */
+function epsPath(ctx, x, y, r, metric = state.metric) {
+  ctx.beginPath();
+  if (metric === "manhattan") {
+    ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r, y); ctx.closePath();
+  } else {
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
+}
+
+function drawCross(ctx, x, y, s) {
+  ctx.beginPath();
+  ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s);
+  ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s);
+  ctx.stroke();
+}
+
+function drawTag(ctx, text, x, y, w, h, color = COLORS.chalk) {
+  ctx.font = `12px ${FONT}`;
+  const tw = ctx.measureText(text).width + 12, th = 20;
+  let bx = x + 12, by = y - th - 10;
+  if (bx + tw > w - 4) bx = x - tw - 12;
+  if (by < 4) by = y + 12;
+  bx = clamp(bx, 4, Math.max(4, w - tw - 4));
+  ctx.fillStyle = "rgba(16,21,30,0.94)";
+  ctx.strokeStyle = COLORS.rule;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 5); else ctx.rect(bx, by, tw, th);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText(text, bx + 6, by + th / 2 + 0.5);
+}
+
+let renderQueued = false;
+function requestRender() {
+  if (!renderQueued) { renderQueued = true; requestAnimationFrame(drawBoard); }
+}
+
+function drawBoard(now) {
+  renderQueued = false;
+  now = performance.now();   // not the rAF timestamp: it can predate a step taken during a long task
+  const { ctx, w, h } = fitCanvas(board);
+  updateGeometry(w, h);
+  ctx.clearRect(0, 0, w, h);
+  let animating = false;
+  const sc = geo.sc, pts = state.points, v = currentView(), rec = state.rec;
+
+  // --- grid and axis labels ---
+  ctx.lineWidth = 1;
+  ctx.font = `11px ${FONT}`;
+  for (let i = 0; i <= WORLD; i++) {
+    const gx = Math.round(toScreen(i, 0)[0]) + 0.5, gy = Math.round(toScreen(0, i)[1]) + 0.5;
+    ctx.strokeStyle = i % 5 === 0 ? "rgba(152,161,178,0.22)" : "rgba(152,161,178,0.08)";
+    ctx.beginPath();
+    ctx.moveTo(gx, geo.oy); ctx.lineTo(gx, geo.oy + geo.size);
+    ctx.moveTo(geo.ox, gy); ctx.lineTo(geo.ox + geo.size, gy);
+    ctx.stroke();
+    if (i % 2 === 0) {
+      ctx.fillStyle = COLORS.fog;
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(String(i), gx, geo.oy + geo.size + 5);
+      ctx.textAlign = "right"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i), geo.ox - 6, gy);
+    }
+  }
+
+  const epsPx = state.eps * sc;
+
+  // --- optional: ε around every point ---
+  if (state.showAllEps && epsPx > 0.5) {
+    ctx.fillStyle = "rgba(237,231,217,0.03)";
+    ctx.strokeStyle = "rgba(237,231,217,0.11)";
+    ctx.lineWidth = 1;
+    for (const P of pts) {
+      const [x, y] = toScreen(P.x, P.y);
+      epsPath(ctx, x, y, epsPx);
+      ctx.fill(); ctx.stroke();
+    }
+  }
+
+  // --- current region query: neighbour lines + ε-ball expanding to scale ---
+  let cur = null;
+  if (rec && pts[rec.point]) {
+    const [cx, cy] = toScreen(pts[rec.point].x, pts[rec.point].y);
+    cur = { cx, cy };
+    let t = 1;
+    if (!reducedMotion() && state.epsAnimStart >= 0) {
+      const dur = state.playing ? Math.min(320, 700 / state.speed) : 320;
+      t = clamp((now - state.epsAnimStart) / dur, 0, 1);
+      if (t < 1) animating = true;
+    }
+    const e = 1 - Math.pow(1 - t, 3);                  // ease-out cubic
+    const rPx = rec.eps * sc * e;
+
+    epsPath(ctx, cx, cy, Math.max(rPx, 0.5), rec.metric);
+    ctx.fillStyle = "rgba(237,231,217,0.07)";
+    ctx.fill();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = COLORS.chalk;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = `rgba(237,231,217,${0.5 * e})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (const q of rec.neighbours) {
+      if (q === rec.point) continue;
+      const [x, y] = toScreen(pts[q].x, pts[q].y);
+      ctx.moveTo(cx, cy); ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    if (rPx > 34 && t === 1) {                         // radius annotation
+      ctx.strokeStyle = "rgba(237,231,217,0.7)";
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx - rPx, cy); ctx.stroke();
+      ctx.fillStyle = COLORS.chalk;
+      ctx.font = `11px ${FONT}`;
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.fillText(`ε = ${f2(rec.eps)}`, cx - rPx / 2, cy - 3);
+    }
+  }
+
+  // --- points ---
+  for (let i = 0; i < pts.length; i++) {
+    const [x, y] = toScreen(pts[i].x, pts[i].y);
+    const L = v.labels[i];
+    if (L > 0) {
+      const col = clusterColor(L);
+      if (v.core[i]) {
+        ctx.fillStyle = col; circlePath(ctx, x, y, 5); ctx.fill();
+      } else {
+        ctx.strokeStyle = col; ctx.lineWidth = 1.6; circlePath(ctx, x, y, 5.2); ctx.stroke();
+        ctx.fillStyle = col; circlePath(ctx, x, y, 2.2); ctx.fill();
+      }
+    } else if (L === LABEL_NOISE) {
+      ctx.strokeStyle = COLORS.noise; ctx.lineWidth = 1.8; drawCross(ctx, x, y, 3.8);
+    } else {
+      ctx.fillStyle = COLORS.unvisited; circlePath(ctx, x, y, 3.4); ctx.fill();
+      if (state.queueSet.has(i)) {
+        ctx.setLineDash([2, 2]); ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.2;
+        circlePath(ctx, x, y, 6.5); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+  }
+
+  // --- highlight the neighbours of the current query and the current point ---
+  if (rec && cur) {
+    ctx.strokeStyle = "rgba(237,231,217,0.4)";
+    ctx.lineWidth = 1;
+    for (const q of rec.neighbours) {
+      if (q === rec.point) continue;
+      const [x, y] = toScreen(pts[q].x, pts[q].y);
+      circlePath(ctx, x, y, 8.5); ctx.stroke();
+    }
+    ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 2;
+    circlePath(ctx, cur.cx, cur.cy, 10); ctx.stroke();
+
+    // noise → border re-labels: a static double ring (+ a pulse when motion is allowed)
+    for (const a of rec.adopted) {
+      const [x, y] = toScreen(pts[a].x, pts[a].y);
+      ctx.strokeStyle = clusterColor(rec.cluster); ctx.lineWidth = 1.2;
+      circlePath(ctx, x, y, 9); ctx.stroke();
+      circlePath(ctx, x, y, 12); ctx.stroke();
+    }
+  }
+  if (reducedMotion()) state.pulses = [];
+  state.pulses = state.pulses.filter((pu) => now - pu.start < 900 && pts[pu.id]);
+  for (const pu of state.pulses) {
+    const t = clamp((now - pu.start) / 900, 0, 1);
+    const [x, y] = toScreen(pts[pu.id].x, pts[pu.id].y);
+    ctx.globalAlpha = 1 - t;
+    ctx.strokeStyle = clusterColor(Math.max(1, v.labels[pu.id])); ctx.lineWidth = 2;
+    circlePath(ctx, x, y, 8 + 22 * t); ctx.stroke();
+    ctx.globalAlpha = 1;
+    animating = true;
+  }
+
+  // --- live ε preview while the slider moves ---
+  if (state.preview && now < state.preview.until) {
+    const [x, y] = toScreen(state.preview.x, state.preview.y);
+    const a = Math.min(1, (state.preview.until - now) / 400);
+    epsPath(ctx, x, y, Math.max(epsPx, 0.5));
+    ctx.fillStyle = `rgba(217,169,80,${0.1 * a})`; ctx.fill();
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = `rgba(217,169,80,${a})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(217,169,80,${a})`; ctx.font = `12px ${FONT}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(`ε = ${f2(state.eps)}`, x, y - Math.max(epsPx, 6) - 4);
+    animating = true;
+  }
+
+  // --- ε scale bar (bottom-right of the plot) ---
+  if (pts.length && epsPx >= 3 && epsPx <= geo.size * 0.45) {
+    const x1 = geo.ox + geo.size - 12, x0 = x1 - epsPx, y0 = geo.oy + geo.size - 12;
+    ctx.fillStyle = "rgba(16,21,30,0.85)";
+    ctx.fillRect(x0 - 8, y0 - 20, epsPx + 16, 28);
+    ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0); ctx.lineTo(x1, y0);
+    ctx.moveTo(x0, y0 - 4); ctx.lineTo(x0, y0 + 4);
+    ctx.moveTo(x1, y0 - 4); ctx.lineTo(x1, y0 + 4);
+    ctx.stroke();
+    ctx.fillStyle = COLORS.chalk; ctx.font = `11px ${FONT}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(`ε = ${f2(state.eps)}`, (x0 + x1) / 2, y0 - 5);
+  }
+
+  // --- how to edit (only before a run starts, and not while a point is hovered) ---
+  if (pts.length && state.hover < 0 && !state.started) {
+    ctx.font = `11.5px ${FONT}`;
+    const tip = "Click: add a point · click a point: delete it";
+    ctx.fillStyle = "rgba(16,21,30,0.85)";
+    ctx.fillRect(geo.ox + 6, geo.oy + 6, ctx.measureText(tip).width + 12, 20);
+    ctx.fillStyle = COLORS.fog;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(tip, geo.ox + 12, geo.oy + 16.5);
+  }
+
+  // --- hover / keyboard cursor feedback ---
+  if (state.hover >= 0 && pts[state.hover]) {
+    const i = state.hover, P = pts[i];
+    const [x, y] = toScreen(P.x, P.y);
+    ctx.strokeStyle = COLORS.brass; ctx.lineWidth = 2;
+    circlePath(ctx, x, y, 9); ctx.stroke();
+    let what = labelInfo(v.labels[i], v.core[i]).text;
+    if (what === "—") what = state.queueSet.has(i) ? "queued" : "not processed";
+    drawTag(ctx, `p${i} (${f2(P.x)}, ${f2(P.y)}) · ${what} · click to delete`, x, y, w, h);
+  } else if (state.mouse && insidePlot(toWorld(state.mouse.px, state.mouse.py)) && !state.boardFocusedByKey) {
+    const { px, py } = state.mouse;
+    ctx.strokeStyle = "rgba(217,169,80,0.8)"; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py); ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke();
+  }
+  if (state.boardFocusedByKey && state.cursor) {
+    const [x, y] = toScreen(state.cursor.x, state.cursor.y);
+    ctx.strokeStyle = COLORS.brass; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y); ctx.lineTo(x - 4, y); ctx.moveTo(x + 4, y); ctx.lineTo(x + 12, y);
+    ctx.moveTo(x, y - 12); ctx.lineTo(x, y - 4); ctx.moveTo(x, y + 4); ctx.lineTo(x, y + 12);
+    ctx.stroke();
+    if (state.hover < 0) drawTag(ctx, `(${f2(state.cursor.x)}, ${f2(state.cursor.y)}) · Enter adds a point`, x, y, w, h, COLORS.brass);
+  }
+
+  if (!pts.length) {
+    ctx.fillStyle = COLORS.fog;
+    ctx.font = `14px ${FONT}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("Click anywhere to add a point,", geo.ox + geo.size / 2, geo.oy + geo.size / 2 - 10);
+    ctx.fillText("or pick a generator on the right.", geo.ox + geo.size / 2, geo.oy + geo.size / 2 + 12);
+  }
+
+  if (animating) requestRender();
+}
+
+/* ---------------- panel 4: convergence progress ---------------- */
+const SERIES = [
+  { key: "remaining", name: "Unprocessed points", color: COLORS.chalk, width: 2.5 },
+  { key: "assigned",  name: "Assigned to a cluster", color: COLORS.brass, width: 2 },
+  { key: "noise",     name: "Noise points", color: COLORS.noise, width: 1.8, dash: [5, 4] },
+  { key: "clusters",  name: "Clusters found (right axis)", color: "#9C95FF", width: 1.4, stepped: true, right: true },
+];
+
+/** Axis maximum that splits into 4 "nice" ticks: 4 × (1, 2, 2.5, 3, 4, 5, 6 or 8) × 10^k ≥ v; integer ticks when asked. */
+function niceMax(v, integer = false) {
+  if (!(v > 0)) return integer ? 4 : 1;
+  const raw = v / 4, p = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const m of [1, 2, 2.5, 3, 4, 5, 6, 8, 10]) {
+    const step = m * p;
+    if (step >= raw - 1e-12 && (!integer || Number.isInteger(step))) return 4 * step;
+  }
+  return 40 * p;
+}
+const tickText = (v) => String(+v.toFixed(2));
+
+function chartMessage(ctx, w, h, text) {
+  ctx.fillStyle = COLORS.fog; ctx.font = `13px ${FONT}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText(text, w / 2, h / 2);
+}
+
+function renderConvergence() {
+  const hist = state.history;
+  const last = hist[hist.length - 1] || zeroCounts(0);
+  $("seriesLegend").innerHTML = SERIES.map((s) =>
+    `<li><svg width="24" height="10" aria-hidden="true"><line x1="1" y1="5" x2="23" y2="5" stroke="${s.color}" stroke-width="${s.width}"${s.dash ? ` stroke-dasharray="${s.dash.join(" ")}"` : ""}/></svg>${s.name} <b>${last[s.key]}</b></li>`
+  ).join("");
+
+  const { ctx, w, h } = fitCanvas($("convChart"));
+  ctx.clearRect(0, 0, w, h);
+  const n = state.points.length;
+  if (!n) { chartMessage(ctx, w, h, "No data yet"); return; }
+
+  const L = 40, R = 34, T = 14, B = 26, pw = Math.max(10, w - L - R), ph = Math.max(10, h - T - B);
+  const xMax = n;                                            // a full run takes exactly n steps
+  const yMax = niceMax(n, true);
+  const cMax = Math.max(2, Math.ceil(Math.max(...hist.map((d) => d.clusters)) / 2) * 2);   // even → integer mid tick
+  const X = (s) => L + (s / xMax) * pw;
+  const Y = (v) => T + ph - (v / yMax) * ph;
+  const YR = (v) => T + ph - (v / cMax) * ph;
+
+  ctx.font = `11px ${FONT}`;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(T + ph - (ph * i) / 4) + 0.5;
+    ctx.strokeStyle = i === 0 ? "rgba(152,161,178,0.35)" : "rgba(152,161,178,0.1)";
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+    ctx.fillStyle = COLORS.fog; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    ctx.fillText(tickText((yMax * i) / 4), L - 6, y);
+    if (i % 2 === 0) {
+      ctx.fillStyle = "#9C95FF"; ctx.textAlign = "left";
+      ctx.fillText(tickText((cMax * i) / 4), L + pw + 6, y);
+    }
+  }
+  ctx.fillStyle = COLORS.fog; ctx.textBaseline = "top";
+  for (let i = 0; i <= 4; i++) {
+    const s = Math.round((xMax * i) / 4);
+    ctx.textAlign = i === 0 ? "left" : i === 4 ? "right" : "center";
+    ctx.fillText(i === 0 ? "step 0" : String(s), X(s), T + ph + 6);
+  }
+
+  for (const s of SERIES) {
+    const yf = s.right ? YR : Y;
+    ctx.beginPath();
+    ctx.strokeStyle = s.color; ctx.lineWidth = s.width; ctx.setLineDash(s.dash || []);
+    hist.forEach((d, i) => {
+      const x = X(d.step), y = yf(d[s.key]);
+      if (i === 0) ctx.moveTo(x, y);
+      else { if (s.stepped) ctx.lineTo(x, yf(hist[i - 1][s.key])); ctx.lineTo(x, y); }
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  const cur = hist[hist.length - 1];
+  if (cur.step > 0) {
+    const x = Math.round(X(cur.step)) + 0.5;
+    ctx.strokeStyle = state.converged ? COLORS.brass : "rgba(152,161,178,0.35)";
+    ctx.setLineDash(state.converged ? [4, 3] : []);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = COLORS.chalk;
+    circlePath(ctx, X(cur.step), Y(cur.remaining), 3.5); ctx.fill();
+    if (state.converged) {
+      ctx.fillStyle = COLORS.brass; ctx.font = `12px ${FONT}`;
+      ctx.textAlign = "right"; ctx.textBaseline = "top";
+      ctx.fillText(`converged at step ${cur.step}: 0 unprocessed`, x - 6, T + 2);
+    }
+  }
+}
+
+/* ---------------- panel 4: k-distance plot ---------------- */
+function getKd() {
+  const key = `${state.dataVersion}|${state.minPts}|${state.metric}`;
+  if (state.kdKey !== key) {
+    const kd = kDistances(state.points, state.minPts, state.metric);
+    state.kd = kd ? { sorted: kd.slice().sort((a, b) => b - a) } : null;
+    if (state.kd) state.kd.elbow = elbowIndex(state.kd.sorted);
+    state.kdKey = key;
+  }
+  return state.kd;
+}
+
+function renderKDist() {
+  const { ctx, w, h } = fitCanvas($("kdChart"));
+  ctx.clearRect(0, 0, w, h);
+  const n = state.points.length, k = state.minPts, eps = state.eps;
+  const info = $("kdInfo"), btn = $("elbowBtn");
+  const kd = getKd();
+  if (!kd) {
+    chartMessage(ctx, w, h, n ? `The k-distance needs at least k = MinPts = ${k} points (there ${plural(n, "is", "are")} ${n}).` : "No data yet");
+    info.textContent = "";
+    btn.disabled = true;
+    return;
+  }
+  const s = kd.sorted;
+  const L = 44, R = 16, T = 24, B = 24, pw = Math.max(10, w - L - R), ph = Math.max(10, h - T - B);
+  const yMax = niceMax(Math.max(s[0], eps) * 1.05);
+  const X = (i) => L + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
+  const Y = (v) => T + ph - (Math.min(v, yMax) / yMax) * ph;
+
+  ctx.font = `11px ${FONT}`;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = Math.round(T + ph - (ph * i) / 4) + 0.5;
+    ctx.strokeStyle = i === 0 ? "rgba(152,161,178,0.35)" : "rgba(152,161,178,0.1)";
+    ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
+    ctx.fillStyle = COLORS.fog; ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    ctx.fillText(tickText((yMax * i) / 4), L - 6, y);
+  }
+  ctx.textAlign = "left"; ctx.textBaseline = "top";
+  ctx.fillText(`distance to k-th nearest point (k = ${k})`, L + 4, 2);
+  ctx.textAlign = "center";
+  ctx.fillText("points, sorted from largest k-distance to smallest", L + pw / 2, T + ph + 6);
+
+  // region under ε = points that will be core
+  const yEps = Y(eps);
+  ctx.fillStyle = "rgba(217,169,80,0.07)";
+  ctx.fillRect(L, yEps, pw, T + ph - yEps);
+
+  ctx.beginPath();
+  ctx.moveTo(X(0), Y(0));
+  s.forEach((v, i) => ctx.lineTo(X(i), Y(v)));
+  ctx.lineTo(X(n - 1), Y(0));
+  ctx.closePath();
+  ctx.fillStyle = "rgba(237,231,217,0.06)"; ctx.fill();
+  ctx.beginPath();
+  s.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))));
+  ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.8; ctx.stroke();
+
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = COLORS.brass; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.moveTo(L, Math.round(yEps) + 0.5); ctx.lineTo(L + pw, Math.round(yEps) + 0.5); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = COLORS.brass; ctx.font = `12px ${FONT}`;
+  ctx.textAlign = "right"; ctx.textBaseline = "bottom";
+  ctx.fillText(`ε = ${f2(eps)}`, L + pw - 4, yEps - 3);
+
+  let elbowEps = null;
+  if (kd.elbow >= 0) {
+    elbowEps = s[kd.elbow];
+    const ex = X(kd.elbow), ey = Y(elbowEps);
+    ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.5;
+    circlePath(ctx, ex, ey, 5); ctx.stroke();
+    ctx.fillStyle = COLORS.chalk; ctx.font = `11px ${FONT}`;
+    ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+    ctx.fillText(`elbow ≈ ${f2(elbowEps)}`, ex + 8, ey - 6);
+  }
+
+  const coreCount = s.filter((v) => v <= eps + EPS_TOLERANCE).length;
+  info.textContent = `${coreCount} of ${n} points have k-distance ≤ ε, so exactly ${coreCount} will be core points.` +
+    (elbowEps != null ? ` Elbow estimate: ε ≈ ${f2(elbowEps)}.` : "");
+  btn.disabled = elbowEps == null;
+  btn.dataset.eps = elbowEps == null ? "" : String(Math.round(elbowEps * 100) / 100);
+}
+
+/* ---------------- controller: run lifecycle ---------------- */
+function updateStatus() {
+  const pill = $("runStatus"), n = state.points.length;
+  let text, st;
+  if (!n) { text = "No data"; st = "idle"; }
+  else if (state.converged) { const c = currentView().counts; text = `Converged · ${c.clusters} ${plural(c.clusters, "cluster", "clusters")}`; st = "converged"; }
+  else if (state.playing) { text = "Running"; st = "running"; }
+  else if (state.started) { text = `Paused at step ${state.rec ? state.rec.step : 0}`; st = "paused"; }
+  else { text = "Ready"; st = "idle"; }
+  pill.textContent = text;
+  pill.dataset.state = st;
+}
+
+function updateButtons() {
+  const n = state.points.length;
+  $("stepBtn").disabled = !n || state.converged || state.playing;
+  $("playBtn").disabled = !n || state.converged || state.playing;
+  $("pauseBtn").disabled = !state.playing;
+  $("resetBtn").disabled = !state.started;
+  $("resetRunBtn").disabled = !state.started;
+  $("clearBtn").disabled = !n;
+  $("dataInfo").textContent = `${n} ${plural(n, "point", "points")}${n >= MAX_POINTS ? " (limit reached)" : ""}`;
+  updateStatus();
+}
+
+/** Discard the run but keep the points. Returns true if a run had started. */
+function resetRun(reason) {
+  const hadRun = state.started;
+  pause(true);
+  const n = state.points.length;
+  state.gen = null; state.rec = null;
+  state.started = false; state.converged = false;
+  state.queueSet = new Set(); state.log = []; state.pulses = []; state.epsAnimStart = -1;
+  state.emptyView = {
+    labels: new Array(n).fill(LABEL_NONE), visited: new Array(n).fill(false),
+    core: new Array(n).fill(false), nCount: new Array(n).fill(null),
+    queue: [], counts: zeroCounts(n),
+  };
+  state.history = [{ step: 0, ...zeroCounts(n) }];
+  buildTable();
+  renderStatePanel();
+  renderConvergence();
+  updateButtons();
+  requestRender();
+  if (hadRun && reason) notify(`Run reset because ${reason}. Press Step or Play to start again.`);
+  return hadRun;
+}
+
+/** Advance exactly one region query. Step and Play share this code path. */
+function doStep() {
+  if (!state.points.length) { notify("Add some points first: click the canvas or use a generator."); return false; }
+  if (state.converged) { notify("This run has already converged. Press Reset to run it again."); return false; }
+  if (!state.gen) {
+    state.gen = dbscanSteps(state.points.map((p) => ({ x: p.x, y: p.y })), state.eps, state.minPts, state.metric);
+    state.started = true;
+  }
+  const r = state.gen.next();
+  if (r.done) { finishRun(); return false; }
+
+  const rec = r.value;
+  state.rec = rec;
+  state.queueSet = new Set(rec.queue);
+  state.history.push({ step: rec.step, ...rec.counts });
+  state.log.unshift({ step: rec.step, text: describeStep(rec) });
+  if (state.log.length > 10) state.log.length = 10;
+  const now = performance.now();
+  state.epsAnimStart = now;
+  if (!reducedMotion()) for (const id of rec.adopted) state.pulses.push({ id, start: now });
+  updateRows(rec);
+
+  if (rec.counts.remaining === 0) {      // that was the last unvisited point
+    state.gen.next();                    // let the generator return
+    finishRun();
+  } else {
+    renderStatePanel();
+    renderConvergence();
+    updateButtons();
+  }
+  requestRender();
+  return true;
+}
+
+function finishRun() {
+  state.converged = true;
+  state.gen = null;
+  pause(true);
+  const summary = convergedSummary(currentView().counts);
+  state.log.unshift({ step: "✓", text: summary });
+  if (state.log.length > 10) state.log.length = 10;
+  renderStatePanel();
+  renderConvergence();
+  updateButtons();
+  notify(summary);
+  const a = document.activeElement;
+  if (a && a.disabled) $("resetBtn").focus();
+}
+
+function play() {
+  if (!state.points.length) { notify("Add some points first: click the canvas or use a generator."); return; }
+  if (state.converged) { notify("This run has already converged. Press Reset to run it again."); return; }
+  if (state.playing) return;
+  const refocus = document.activeElement === $("playBtn");
+  state.playing = true;
+  updateButtons();
+  if (refocus) $("pauseBtn").focus();
+  tick();
+}
+
+function tick() {
+  if (!state.playing) return;
+  doStep();
+  if (state.playing && !state.converged) state.timer = setTimeout(tick, 1000 / state.speed);
+}
+
+function pause(silent) {
+  const wasPlaying = state.playing;
+  const refocus = document.activeElement === $("pauseBtn");
+  state.playing = false;
+  clearTimeout(state.timer);
+  updateButtons();
+  if (refocus && !$("playBtn").disabled) $("playBtn").focus();
+  if (wasPlaying && !silent) notify(`Paused at step ${state.rec ? state.rec.step : 0}. Press Step to continue one query at a time.`);
+}
+
+/* ---------------- controller: data ---------------- */
+function afterDataChange(reason) {
+  state.dataVersion++;
+  state.hover = -1;
+  resetRun(reason);
+  renderWarnings();
+  renderKDist();
+}
+
+function addPoint(x, y) {
+  if (state.points.length >= MAX_POINTS) { notify(`The canvas holds at most ${MAX_POINTS} points. Delete some first.`); return; }
+  state.points.push({ x: clamp(x, 0, WORLD), y: clamp(y, 0, WORLD) });
+  afterDataChange("a point was added");
+}
+
+function removePoint(i) {
+  state.points.splice(i, 1);
+  afterDataChange("a point was removed (later point numbers shift down by one)");
+}
+
+const GEN_NAMES = { uniform: "uniform random", blobs: "Gaussian blobs", moons: "two moons", circles: "concentric circles" };
+
+function loadData(kind) {
+  pause(true);
+  const n = +$("nRange").value, noise = +$("noiseRange").value;
+  state.points = GENERATORS[kind](n, noise, Math.random).map(({ x, y }) => ({ x, y }));
+  if (kind === "worked") {
+    setEpsValue(KNOWN_ANSWER.eps);
+    setMinPtsValue(KNOWN_ANSWER.minPts);
+    setMetricValue("euclidean");
+  }
+  afterDataChange("new data was loaded");
+  notify(kind === "worked"
+    ? "Loaded the 12-point worked example and set ε = 1.00, MinPts = 3, Euclidean. Every label can be checked by hand (see Built-in tests)."
+    : `Generated ${state.points.length} points (${GEN_NAMES[kind]}). Press Step or Play.`);
+}
+
+/* ---------------- controller: hyperparameters ---------------- */
+const FORMULA_HTML = {
+  euclidean: "<i>d</i>(<i>p</i>,<i>q</i>) = √((<i>p</i><sub>x</sub> − <i>q</i><sub>x</sub>)² + (<i>p</i><sub>y</sub> − <i>q</i><sub>y</sub>)²)",
+  manhattan: "<i>d</i>(<i>p</i>,<i>q</i>) = |<i>p</i><sub>x</sub> − <i>q</i><sub>x</sub>| + |<i>p</i><sub>y</sub> − <i>q</i><sub>y</sub>|",
+};
+
+function renderFormulas() {
+  const man = state.metric === "manhattan";
+  $("formulaDist").innerHTML = FORMULA_HTML[state.metric] + (man ? " &nbsp;(Manhattan: the ε-ball is a diamond)" : " &nbsp;(Euclidean: the ε-ball is a circle)");
+  $("metricHelp").innerHTML = man
+    ? "Adds the horizontal and vertical gaps, so the ε region is a diamond and the same ε finds fewer neighbours."
+    : "Straight-line distance, so the ε region is a circle.";
+}
+
+function renderWarnings() {
+  const n = state.points.length, w = [];
+  if (n && state.minPts > n) w.push(`MinPts (${state.minPts}) is larger than the number of points (${n}), so no point can be core and everything will be noise.`);
+  if (state.eps === 0) w.push("ε = 0: only points at exactly the same position count as neighbours.");
+  if (state.minPts === 1) w.push("MinPts = 1: every point is core, so every isolated point becomes its own cluster and nothing is noise.");
+  $("paramWarn").innerHTML = w.map((t) => `<li>${t}</li>`).join("");
+}
+
+function setEpsValue(v) {
+  state.eps = Math.round(clamp(v, 0, 10) * 100) / 100;
+  $("epsRange").value = String(Math.min(state.eps, 3));
+  if (document.activeElement !== $("epsNum")) $("epsNum").value = state.eps.toFixed(2);
+}
+function setMinPtsValue(v) {
+  state.minPts = clamp(Math.round(v), 1, 20);
+  $("minPtsRange").value = String(state.minPts);
+  if (document.activeElement !== $("minPtsNum")) $("minPtsNum").value = String(state.minPts);
+}
+function setMetricValue(m) {
+  state.metric = METRICS[m] ? m : "euclidean";
+  $("metricSel").value = state.metric;
+  renderFormulas();
+}
+
+/** Any hyperparameter change invalidates a run in progress. */
+function onParamChange(reason) {
+  if (state.started) resetRun(reason);
+  else renderStatePanel();
+  renderWarnings();
+  renderKDist();
+  requestRender();
+}
+
+/** Flash the ε-ball at the hovered point, the current point, or the centre. */
+function previewEps() {
+  let at = null;
+  if (state.hover >= 0 && state.points[state.hover]) at = state.points[state.hover];
+  else if (state.rec && state.points[state.rec.point]) at = state.points[state.rec.point];
+  const p = at || { x: WORLD / 2, y: WORLD / 2 };
+  state.preview = { x: p.x, y: p.y, until: performance.now() + 1400 };
+  requestRender();
+}
+
+/* ---------------- events: canvas ---------------- */
+function boardPos(e) {
+  const r = board.getBoundingClientRect();
+  return { px: e.clientX - r.left, py: e.clientY - r.top };
+}
+function cursorHit() {
+  const [sx, sy] = toScreen(state.cursor.x, state.cursor.y);
+  return hitTest(sx, sy, 8);
+}
+
+board.addEventListener("pointerdown", () => { state.boardFocusedByKey = false; });
+board.addEventListener("pointermove", (e) => {
+  const m = boardPos(e);
+  state.mouse = m;
+  state.hover = hitTest(m.px, m.py);
+  board.style.cursor = state.hover >= 0 ? "pointer" : "crosshair";
+  requestRender();
+});
+board.addEventListener("pointerleave", () => { state.mouse = null; state.hover = -1; requestRender(); });
+board.addEventListener("click", (e) => {
+  const m = boardPos(e);
+  const hit = hitTest(m.px, m.py);
+  if (hit >= 0) removePoint(hit);
+  else {
+    const wp = toWorld(m.px, m.py);
+    if (insidePlot(wp)) addPoint(wp.x, wp.y);
+  }
+  state.hover = hitTest(m.px, m.py);
+  requestRender();
+});
+board.addEventListener("focus", () => {
+  state.boardFocused = true;
+  state.boardFocusedByKey = board.matches(":focus-visible");
+  if (!state.cursor) state.cursor = { x: WORLD / 2, y: WORLD / 2 };
+  if (state.boardFocusedByKey) state.hover = cursorHit();
+  requestRender();
+});
+board.addEventListener("blur", () => {
+  state.boardFocused = false;
+  state.boardFocusedByKey = false;
+  state.hover = -1;
+  requestRender();
+});
+board.addEventListener("keydown", (e) => {
+  const c = state.cursor || (state.cursor = { x: WORLD / 2, y: WORLD / 2 });
+  const d = e.shiftKey ? 0.5 : 0.1;
+  let handled = true;
+  switch (e.key) {
+    case "ArrowLeft": c.x -= d; break;
+    case "ArrowRight": c.x += d; break;
+    case "ArrowUp": c.y += d; break;
+    case "ArrowDown": c.y -= d; break;
+    case "Enter": case " ": {
+      const hit = cursorHit();
+      if (hit >= 0) removePoint(hit); else addPoint(c.x, c.y);
+      break;
+    }
+    case "Delete": case "Backspace": {
+      const hit = cursorHit();
+      if (hit >= 0) removePoint(hit);
+      break;
+    }
+    default: handled = false;
+  }
+  if (!handled) return;
+  e.preventDefault();
+  e.stopPropagation();
+  c.x = clamp(c.x, 0, WORLD);
+  c.y = clamp(c.y, 0, WORLD);
+  state.boardFocusedByKey = true;
+  state.hover = cursorHit();
+  requestRender();
+});
+
+/* ---------------- events: controls ---------------- */
+const manualReset = () => {
+  resetRun();
+  notify("Run reset. The points are kept; press Step or Play to start again.");
+};
+$("stepBtn").addEventListener("click", doStep);
+$("playBtn").addEventListener("click", play);
+$("pauseBtn").addEventListener("click", () => pause());
+$("resetBtn").addEventListener("click", manualReset);
+$("resetRunBtn").addEventListener("click", manualReset);
+$("clearBtn").addEventListener("click", () => {
+  state.points = [];
+  afterDataChange("the canvas was cleared");
+  notify("Canvas cleared. Click to add points or use a generator.");
+});
+document.querySelectorAll("[data-gen]").forEach((b) => b.addEventListener("click", () => loadData(b.dataset.gen)));
+
+$("nRange").addEventListener("input", () => { $("nOut").textContent = $("nRange").value; });
+$("noiseRange").addEventListener("input", () => { $("noiseOut").textContent = (+$("noiseRange").value).toFixed(2); });
+$("speedRange").addEventListener("input", () => {
+  state.speed = +$("speedRange").value;
+  $("speedOut").textContent = `${state.speed} steps/s`;
+});
+
+$("epsRange").addEventListener("input", () => {
+  previewEps();
+  setEpsValue(+$("epsRange").value);
+  onParamChange("ε changed");
+});
+$("epsNum").addEventListener("input", () => {
+  const v = parseFloat($("epsNum").value);
+  if (!Number.isFinite(v) || v < 0) return;
+  previewEps();
+  setEpsValue(v);
+  onParamChange("ε changed");
+});
+$("epsNum").addEventListener("change", () => { $("epsNum").value = state.eps.toFixed(2); });
+
+$("minPtsRange").addEventListener("input", () => {
+  setMinPtsValue(+$("minPtsRange").value);
+  onParamChange("MinPts changed");
+});
+$("minPtsNum").addEventListener("input", () => {
+  const v = parseInt($("minPtsNum").value, 10);
+  if (!Number.isFinite(v)) return;
+  setMinPtsValue(v);
+  onParamChange("MinPts changed");
+});
+$("minPtsNum").addEventListener("change", () => { $("minPtsNum").value = String(state.minPts); });
+
+$("metricSel").addEventListener("change", () => {
+  setMetricValue($("metricSel").value);
+  previewEps();
+  onParamChange("the distance metric changed");
+});
+$("allEpsChk").addEventListener("change", () => { state.showAllEps = $("allEpsChk").checked; requestRender(); });
+
+$("elbowBtn").addEventListener("click", () => {
+  const v = parseFloat($("elbowBtn").dataset.eps);
+  if (!Number.isFinite(v)) return;
+  const hadRun = state.started;
+  previewEps();
+  setEpsValue(v);
+  onParamChange("ε changed");
+  notify(`ε set to the elbow estimate, ${f2(state.eps)}.` + (hadRun ? " The run was reset." : " Press Step or Play."));
+});
+
+// keyboard shortcuts (ignored while typing in a field)
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat && e.key.toLowerCase() !== "s") return;
+  const t = e.target;
+  if (t && t.matches && t.matches("input, select, textarea")) return;
+  const k = e.key.toLowerCase();
+  if (k === "s") { e.preventDefault(); if (!state.playing) doStep(); }
+  else if (k === "p") { e.preventDefault(); if (state.playing) pause(); else play(); }
+  else if (k === "r") { e.preventDefault(); if (state.started) manualReset(); }
+});
+
+/* ---------------- resize + motion preference ---------------- */
+let chartsQueued = false;
+function requestCharts() {
+  if (chartsQueued) return;
+  chartsQueued = true;
+  requestAnimationFrame(() => { chartsQueued = false; renderConvergence(); renderKDist(); });
+}
+if ("ResizeObserver" in window) {
+  const ro = new ResizeObserver((entries) => {
+    for (const e of entries) canvasSizes.set(e.target, { w: e.contentRect.width, h: e.contentRect.height });
+    requestRender();
+    requestCharts();
+  });
+  [board, $("convChart"), $("kdChart")].forEach((el) => ro.observe(el));
+} else {
+  window.addEventListener("resize", () => {
+    [board, $("convChart"), $("kdChart")].forEach((el) => canvasSizes.delete(el));
+    requestRender();
+    requestCharts();
+  });
+}
+if (motionQuery.addEventListener) motionQuery.addEventListener("change", requestRender);
+
+/* ---------------- built-in tests panel ---------------- */
+const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+
+function renderTests() {
+  let tests;
+  try { tests = runSelfTests(); }
+  catch (err) { tests = [{ name: "Test harness", input: "", expected: "no exception", actual: String(err), pass: false }]; }
+  const passed = tests.filter((t) => t.pass).length;
+  $("testsSummary").textContent = `Built-in tests: ${passed}/${tests.length} passed`;
+  $("testsTable").innerHTML =
+    "<thead><tr><th>Test</th><th>Input</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead><tbody>" +
+    tests.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(t.input)}</td><td>${esc(t.expected)}</td><td>${esc(t.actual)}</td>` +
+      `<td class="${t.pass ? "pass" : "fail"}">${t.pass ? "pass" : "fail"}</td></tr>`).join("") + "</tbody>";
+  console.info(`DBSCAN visualizer self-tests: ${passed}/${tests.length} passed`);
+}
+$("rerunTestsBtn").addEventListener("click", renderTests);
+
+/* ---------------- start ---------------- */
+function init() {
+  setEpsValue(0.5);
+  setMinPtsValue(5);
+  setMetricValue("euclidean");
+  state.speed = +$("speedRange").value;
+  $("speedOut").textContent = `${state.speed} steps/s`;
+  // deterministic first view: two moons, where DBSCAN shines and k-means fails
+  state.points = GENERATORS.moons(240, 0.15, mulberry32(2024)).map(({ x, y }) => ({ x, y }));
+  state.dataVersion++;
+  resetRun();
+  renderWarnings();
+  renderKDist();
+  renderTests();
+}
+init();
+
+</script>
+</body>
+</html>
