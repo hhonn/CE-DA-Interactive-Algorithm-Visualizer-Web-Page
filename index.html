@@ -13,19 +13,20 @@
    Six named colours; everything else is derived from them.
    ===================================================================== */
 :root {
-  --night: #141a25;   /* page ground: deep ink blue, not neutral black   */
-  --slate: #1d2432;   /* floating panel surface                          */
-  --rule:  #313a4d;   /* borders, grid lines, dividers                   */
-  --chalk: #ede7d9;   /* primary text; the ε circle is drawn "in chalk"  */
-  --fog:   #98a1b2;   /* secondary text, axis labels                     */
-  --brass: #d9a950;   /* the single accent: primary action, focus, ε line */
+  --night: #08090a;   /* page ground: near-black, precision-tool dark    */
+  --slate: #131417;   /* floating panel surface (lifted off the page)    */
+  --rule:  #2b2e35;   /* borders, grid lines, dividers                   */
+  --chalk: #f7f8f8;   /* primary text; the ε ring is drawn in this       */
+  --fog:   #9ba1ad;   /* secondary text, axis labels — 7.3:1 on panel    */
+  --brass: #7170ff;   /* the single accent: primary action, focus, ε line */
+  --accent-text: #9d9cff;     /* accent as text: 7.8:1 on panel          */
 
   /* derived */
-  --board: #10151e;           /* data canvas ground (hero) */
-  --raised: #252d3d;          /* buttons, inputs */
-  --noise: #8d94a4;
-  --unvisited: #4c5567;
-  --brass-soft: rgba(217, 169, 80, 0.16);
+  --board: #0b0c0d;           /* data canvas ground (hero) */
+  --raised: #1c1d21;          /* buttons, inputs */
+  --noise: #a2a7b3;           /* noise ×: 8.1:1 on the board             */
+  --unvisited: #5d6371;       /* not processed yet: 3.3:1 on the board   */
+  --brass-soft: rgba(113, 112, 255, 0.18);
 
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -52,7 +53,7 @@ body {
   height: 100vh;
   overflow: hidden;
 }
-a { color: var(--brass); }
+a { color: var(--accent-text); }
 b, strong { font-weight: 600; }
 :focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; border-radius: 4px; }
 
@@ -62,7 +63,7 @@ b, strong { font-weight: 600; }
   padding: 8px 20px;
   border-bottom: 1px solid var(--rule);
 }
-.site-header h1 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
+.site-header h1 { margin: 0; font-size: 19px; letter-spacing: -0.02em; font-weight: 650; letter-spacing: -0.01em; }
 .lede { margin: 1px 0 0; max-width: none; color: var(--fog); font-size: var(--fs-sm); line-height: 1.4; }
 .lede b { color: var(--chalk); }
 .title-block { flex: 1; min-width: 0; }
@@ -72,13 +73,13 @@ b, strong { font-weight: 600; }
   border: 1px solid var(--rule); background: var(--slate);
   font-size: var(--fs-sm); white-space: nowrap;
 }
-.pill[data-state="running"] { border-color: var(--brass); color: var(--brass); }
+.pill[data-state="running"] { border-color: var(--brass); color: var(--accent-text); }
 .pill[data-state="converged"] { border-color: #2fbf8f; color: #7fdcb9; }
 
 /* ---------- two independently scrolling halves ---------- */
 main {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
   gap: 16px;
   padding: 12px 16px;
   min-height: 0;
@@ -112,10 +113,10 @@ main {
 .hint { margin-bottom: 8px; }
 
 /* ---------- panel 1: data canvas (the hero) ---------- */
-.data-layout { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.data-layout { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; justify-content: center; }
 .board-wrap {
-  flex: 1 1 300px;
-  max-width: max(300px, calc(100vh - 270px));
+  flex: 999 1 300px;                     /* the hero takes width first; its max-width clamps it */
+  max-width: max(300px, calc(100vh - 250px));
   aspect-ratio: 1 / 1;
   position: relative;
 }
@@ -124,10 +125,29 @@ main {
   background: var(--board);
   border-radius: 10px;
   border: 1px solid var(--rule);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.45);
   cursor: crosshair;
   touch-action: manipulation;
 }
-.rail { flex: 0 0 196px; max-width: 196px; display: flex; flex-direction: column; gap: 10px; }
+.rail {
+  flex: 1 1 208px; min-width: 208px; max-width: 360px;   /* absorbs the width the square canvas cannot use */
+  display: flex; flex-direction: column; gap: 8px;
+  align-self: stretch;
+}
+.rail > div:not(.btn-grid) {             /* legend and generator groups read as their own blocks */
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex; flex-direction: column; justify-content: space-between; gap: 6px;
+}
+.rail > div:nth-child(1) { flex: 1 1 auto; }   /* legend grows a little   */
+.rail > div:nth-child(2) { flex: 2 1 auto; }   /* generators grow more    */
+.rail > .btn-grid { flex: 0 0 auto; }
+.rail .legend { flex: 1 1 auto; align-content: space-between; }
+.rail .field { justify-content: center; }
+.rail .btn { padding: 6px; }
+.rail .btn-grid { gap: 7px; }
 .rail h3 { margin: 0 0 2px; font-size: var(--fs-sm); color: var(--fog); font-weight: 600; }
 .legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; font-size: 12.5px; }
 .legend li { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -153,9 +173,12 @@ main {
 .panel h2.transport-title { margin-right: 10px; }
 .transport .btn { min-width: 64px; }
 .speed { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: var(--fs-sm); color: var(--fog); }
+.speed.timeline { flex: 1 1 280px; min-width: 220px; }
+.speed.timeline input { flex: 1; }
+.speed input[type="range"] { min-width: 80px; }
 .speed output { color: var(--chalk); min-width: 7ch; font-variant-numeric: tabular-nums; }
 
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; margin-top: 12px; }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 18px; margin-top: 10px; }
 .field label, .field .label { display: flex; align-items: baseline; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
 .field .row { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .field input[type="range"] { flex: 1; min-width: 0; }
@@ -200,7 +223,7 @@ details > summary::marker { color: var(--fog); }
   overflow-x: auto;
 }
 .math .line { white-space: nowrap; }
-.math .verdict { color: var(--brass); font-weight: 600; }
+.math .verdict { color: var(--accent-text); font-weight: 600; }
 .math .dim { color: var(--fog); }
 .math .ok { color: #7fdcb9; }
 .math .no { color: #f39a8a; }
@@ -208,6 +231,9 @@ details > summary::marker { color: var(--fog); }
 .counters { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 .counter { background: var(--board); border-radius: 8px; padding: 6px 8px; border: 1px solid var(--rule); }
 .counter .v { font-size: var(--fs-xl); font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.counter[data-k="clusters"] .v { color: var(--accent-text); }
+.counter[data-k="noise"] .v { color: var(--noise); }
+.counter[data-k="unprocessed"] .v { color: var(--fog); }
 .counter .k { font-size: var(--fs-xs); color: var(--fog); }
 
 .queue-head { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
@@ -220,7 +246,7 @@ details > summary::marker { color: var(--fog); }
 }
 .queue .end { color: var(--fog); font-family: var(--font); font-size: var(--fs-xs); }
 .chip { padding: 1px 6px; border-radius: 5px; background: var(--raised); border: 1px solid var(--rule); }
-.chip.new { border-color: var(--brass); color: var(--brass); animation: chip-in 0.35s ease-out; }
+.chip.new { border-color: var(--brass); color: var(--accent-text); animation: chip-in 0.35s ease-out; }
 .chip.out { text-decoration: line-through; opacity: 0.6; animation: chip-out 0.45s ease-in; }
 .chip.more { background: none; border-style: dashed; color: var(--fog); }
 @keyframes chip-in { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -233,7 +259,7 @@ details > summary::marker { color: var(--fog); }
 .trow {
   display: grid; grid-template-columns: 13% 12% 12% 17% 10% minmax(0, 1fr);
   font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums;
-  border-top: 1px solid rgba(49, 58, 77, 0.6);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
   content-visibility: auto; contain-intrinsic-size: auto 21px;
 }
 .trow > span { padding: 2px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -243,12 +269,13 @@ details > summary::marker { color: var(--fog); }
   background: var(--raised); font-family: var(--font); font-weight: 600; font-size: var(--fs-xs); color: var(--fog);
 }
 .trow.thead > span { padding: 5px 8px; }
+.trow.hover { background: rgba(255, 255, 255, 0.07); }
 .trow.changed { background: var(--brass-soft); }
-.trow.current { background: rgba(217, 169, 80, 0.3); box-shadow: inset 3px 0 0 var(--brass); }
+.trow.current { background: rgba(113, 112, 255, 0.26); box-shadow: inset 3px 0 0 var(--brass); }
 .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
 .swatch.ring { background: none !important; border: 2px solid; width: 10px; height: 10px; }
 .st-unvisited { color: var(--fog); }
-.st-queued { color: var(--brass); }
+.st-queued { color: var(--accent-text); }
 
 .log { list-style: none; margin: 4px 0 0; padding: 0; font-size: var(--fs-sm); }
 .log li { padding: 5px 0; border-top: 1px solid var(--rule); display: grid; grid-template-columns: 4.5ch 1fr; gap: 8px; }
@@ -267,13 +294,6 @@ details > summary::marker { color: var(--fog); }
 #kdChart { height: 190px; }
 .kd-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; font-size: var(--fs-sm); color: var(--fog); }
 
-/* ---------- tests ---------- */
-.tests table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); margin-top: 8px; }
-.tests th, .tests td { text-align: left; padding: 4px 6px; border-top: 1px solid var(--rule); vertical-align: top; }
-.tests th { color: var(--fog); font-weight: 600; }
-.tests td.pass { color: #7fdcb9; font-weight: 600; }
-.tests td.fail { color: #f39a8a; font-weight: 600; }
-
 /* ---------- footer ---------- */
 footer {
   padding: 6px 20px; border-top: 1px solid var(--rule);
@@ -284,6 +304,88 @@ footer .course { color: var(--chalk); font-weight: 600; }
 footer .spacer { margin-left: auto; }
 
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- visual polish (techniques adapted from the SAIG Lab reference pages) ---------- */
+body {
+  background:
+    radial-gradient(1100px 520px at 12% -12%, rgba(113, 112, 255, 0.10), transparent 62%),
+    radial-gradient(900px 480px at 100% 0%, rgba(94, 106, 210, 0.07), transparent 58%),
+    var(--night);
+  background-attachment: fixed;
+}
+.panel {
+  position: relative; overflow: hidden; flex: 0 0 auto;   /* never let the flex column squash a panel */
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.7);
+}
+.panel::before {                       /* hairline highlight along the top edge */
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.10), transparent);
+  pointer-events: none;
+}
+.pill { display: inline-flex; align-items: center; gap: 7px; }
+.pill::before {                        /* status dot that glows in the state colour */
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; box-shadow: 0 0 8px currentColor;
+}
+.btn { transition: border-color .15s, background .15s, color .15s, box-shadow .15s; }
+.btn:hover:not(:disabled) { background: #232427; border-color: #34363c; }
+.btn.primary { background: linear-gradient(180deg, #7f7eff, #5e6ad2); color: #fff; box-shadow: 0 2px 16px rgba(113, 112, 255, 0.4); }
+.btn.primary:hover:not(:disabled) { background: linear-gradient(180deg, #908fff, #6b76dc); }
+:focus-visible { box-shadow: 0 0 0 3px rgba(113, 112, 255, 0.22); }
+
+input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 999px; background: var(--rule); }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; margin-top: -5px;
+  width: 14px; height: 14px; border-radius: 50%; background: var(--brass);
+  box-shadow: 0 0 0 3px rgba(113, 112, 255, 0.22);
+}
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 999px; background: var(--rule); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--brass); }
+
+#board { transition: border-color .2s, box-shadow .2s; }
+#board.running {                       /* the board reacts while the algorithm runs */
+  border-color: rgba(113, 112, 255, 0.6);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(113, 112, 255, 0.25);
+}
+.math { border-left: 2px solid rgba(113, 112, 255, 0.55); }
+.counter { background: linear-gradient(180deg, rgba(25, 26, 27, 0.9), var(--board)); }
+.counter .v { font-family: var(--mono); }
+.chart { background: linear-gradient(180deg, rgba(11, 12, 13, 0.9), var(--board)); }
+.queue { background: linear-gradient(180deg, rgba(11, 12, 13, 0.95), rgba(25, 26, 27, 0.6)); }
+
+@media (max-width: 900px) {
+  body { background-attachment: scroll; }
+}
+
+/* scrollbars in the page palette rather than the browser default */
+.col::-webkit-scrollbar, .table-wrap::-webkit-scrollbar, .math::-webkit-scrollbar { width: 10px; height: 10px; }
+.col::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-track, .math::-webkit-scrollbar-track { background: transparent; }
+.col::-webkit-scrollbar-thumb, .table-wrap::-webkit-scrollbar-thumb, .math::-webkit-scrollbar-thumb {
+  background: #2c2e34; border-radius: 999px; border: 2px solid transparent; background-clip: content-box;
+}
+.col::-webkit-scrollbar-thumb:hover, .table-wrap::-webkit-scrollbar-thumb:hover { background: #3c3f47; background-clip: content-box; }
+.table-wrap, .math { scrollbar-width: thin; scrollbar-color: #2c2e34 transparent; }
+
+.num { background: rgba(113, 112, 255, 0.16); color: #a5a4ff; }
+.meta { font-family: var(--mono); font-size: 12px; }
+
+/* on a short window the rail, not the canvas, sets the panel height: make it compact there */
+@media (max-height: 700px) {
+  main { padding: 8px 14px; gap: 12px; }
+  .col { gap: 10px; }
+  .panel { padding: 10px 14px 12px; }
+  .rail > div:not(.btn-grid) { padding: 6px 8px; gap: 4px; }
+  .rail .btn { padding: 4px 6px; font-size: var(--fs-xs); }
+  .rail .btn-grid { gap: 5px; }
+  .legend { font-size: 11.5px; }
+  .legend li { gap: 4px; }
+  .rail h3 { font-size: var(--fs-xs); }
+}
+@media (min-width: 1700px) {
+  main { grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr); }   /* wide screens: give the slack to the tables and charts */
+}
 
 /* ---------- single column below ~900 px ---------- */
 @media (max-width: 900px) {
@@ -309,9 +411,8 @@ footer .spacer { margin-left: auto; }
 <header class="site-header">
   <div class="title-block">
     <h1>DBSCAN, one region query at a time</h1>
-    <p class="lede">DBSCAN groups points that sit in <b>crowded regions</b> and marks isolated points as <b>noise</b>, without being told how many clusters to find.
-      It needs only two settings: a radius <b>ε</b> and a minimum neighbour count <b>MinPts</b>.
-      Press <b>Step</b> to watch it examine one point at a time and decide whether that point is <b>core</b>, <b>border</b> or <b>noise</b>.</p>
+    <p class="lede">Groups points in <b>crowded regions</b> and marks isolated ones as <b>noise</b>, without being told how many clusters to find.
+      Two settings only: radius <b>ε</b> and minimum neighbour count <b>MinPts</b>.</p>
   </div>
   <div class="status-block"><span id="runStatus" class="pill" role="status">Ready</span></div>
 </header>
@@ -335,17 +436,17 @@ footer .spacer { margin-left: auto; }
           <div>
             <h3>Legend <span class="help" style="font-weight:400">· colour = cluster</span></h3>
             <ul class="legend">
-              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#4c5567"/></svg>Unprocessed</li>
-              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#4c5567"/><circle cx="9" cy="9" r="6.5" fill="none" stroke="#ede7d9" stroke-width="1.2" stroke-dasharray="2 2"/></svg>In queue</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#5d6371"/></svg>Unprocessed</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="3.4" fill="#5d6371"/><circle cx="9" cy="9" r="6.5" fill="none" stroke="#f7f8f8" stroke-width="1.2" stroke-dasharray="2 2"/></svg>In queue</li>
               <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="#56B4E9"/></svg>Core</li>
               <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="#56B4E9" stroke-width="1.6"/><circle cx="9" cy="9" r="2.3" fill="#56B4E9"/></svg>Border</li>
-              <li><svg width="18" height="18" aria-hidden="true"><path d="M5 5 L13 13 M13 5 L5 13" stroke="#8d94a4" stroke-width="1.8"/></svg>Noise</li>
-              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#ede7d9" stroke-width="1.3" stroke-dasharray="3 2"/><circle cx="9" cy="9" r="2" fill="#ede7d9"/></svg>Current + ε</li>
+              <li><svg width="18" height="18" aria-hidden="true"><path d="M5 5 L13 13 M13 5 L5 13" stroke="#a2a7b3" stroke-width="1.8"/></svg>Noise</li>
+              <li><svg width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="7.5" fill="none" stroke="#f7f8f8" stroke-width="1.3" stroke-dasharray="3 2"/><circle cx="9" cy="9" r="2" fill="#f7f8f8"/></svg>Current + ε</li>
             </ul>
           </div>
 
           <div>
-            <h3>Generate data</h3>
+            <h3>Generate data <span class="help" style="font-weight:400">· live</span></h3>
             <div class="field">
               <label for="nRange">Points <output id="nOut" for="nRange">240</output></label>
               <div class="row"><input type="range" id="nRange" min="10" max="500" step="10" value="240"></div>
@@ -382,8 +483,13 @@ footer .spacer { margin-left: auto; }
           <input type="range" id="speedRange" min="1" max="40" step="1" value="8">
           <output id="speedOut" for="speedRange">8 steps/s</output>
         </label>
+        <label class="speed timeline" for="timeline">Timeline
+          <input type="range" id="timeline" min="0" max="0" step="1" value="0" disabled
+                 aria-label="Replay: drag to move back and forth through the steps taken so far">
+          <output id="timelineOut" for="timeline">step 0 / 0</output>
+        </label>
       </div>
-      <p class="help">Step = one point is taken, its ε-neighbourhood is counted, and the labels are updated. Play repeats that until nothing is left. Shortcuts: S = Step, P = Play/Pause, R = Reset. On the canvas, arrow keys move a cross and Enter adds or deletes a point.</p>
+      <p class="help">One Step = one region query. Keys: S step · P play/pause · R reset.</p>
 
       <div class="field-grid">
         <div class="field">
@@ -392,7 +498,7 @@ footer .spacer { margin-left: auto; }
             <input type="range" id="epsRange" min="0" max="3" step="0.01" value="0.5">
             <input type="number" id="epsNum" min="0" max="10" step="0.01" value="0.5" aria-label="ε value">
           </div>
-          <p class="help">How close two points must be to count as neighbours. Larger ε merges clusters; smaller ε creates more noise.</p>
+          <p class="help">Neighbour radius. Larger merges clusters, smaller makes more noise.</p>
         </div>
         <div class="field">
           <label for="minPtsRange">MinPts <span class="help">density threshold</span></label>
@@ -400,7 +506,7 @@ footer .spacer { margin-left: auto; }
             <input type="range" id="minPtsRange" min="1" max="20" step="1" value="5">
             <input type="number" id="minPtsNum" min="1" max="20" step="1" value="5" aria-label="MinPts value">
           </div>
-          <p class="help">How many points (itself included) must lie within ε for a point to be core. Larger MinPts demands denser clusters.</p>
+          <p class="help">Neighbours needed to be core, itself counted. Larger demands denser clusters.</p>
         </div>
         <div class="field">
           <label for="metricSel">Distance metric</label>
@@ -413,7 +519,8 @@ footer .spacer { margin-left: auto; }
         <div class="field">
           <span class="label">Display</span>
           <div class="row"><label class="check" style="font-weight:400"><input type="checkbox" id="allEpsChk"> Show ε around every point</label></div>
-          <p class="help">Overlapping circles reveal the dense regions DBSCAN will find.</p>
+          <div class="row"><label class="check" style="font-weight:400"><input type="checkbox" id="compareChk"> Compare with k-means</label></div>
+          <p class="help">k-means splits with straight borders; DBSCAN follows density.</p>
         </div>
       </div>
 
@@ -421,8 +528,8 @@ footer .spacer { margin-left: auto; }
       <div class="notice" id="notice" role="status" aria-live="polite">Choose data, set ε and MinPts, then press Step.</div>
     </section>
 
-    <details class="panel defs" open>
-      <summary>Definitions: the maths behind each label</summary>
+    <details class="panel defs">
+      <summary>Definitions &amp; the maths behind each label</summary>
       <dl>
         <dt>Distance</dt>
         <dd><span class="formula" id="formulaDist"></span></dd>
@@ -458,7 +565,7 @@ footer .spacer { margin-left: auto; }
         <h2 id="h-state"><span class="num">3</span>Model state</h2>
         <span class="meta" id="stepInfo">step 0</span>
       </div>
-      <p class="hint">DBSCAN learns no weights. Its entire state is the label of every point, which points have been visited, and the expansion queue.</p>
+      <p class="hint">No weights: the state is labels + visited + queue.</p>
 
       <p class="step-msg" id="stepMsg" aria-live="polite"></p>
       <div class="math" id="mathBox"></div>
@@ -470,14 +577,12 @@ footer .spacer { margin-left: auto; }
         <span class="meta" id="queueInfo">empty</span>
       </div>
       <div class="queue" id="queueBox" aria-label="Expansion queue"></div>
-      <p class="help">Points enter at the back when a core point finds them; the front point is taken on the next step.</p>
 
       <h3>Label table</h3>
       <div class="table-wrap" id="tableWrap" role="table" aria-label="Label table">
         <div class="trow thead" role="row"><span role="columnheader">Point</span><span class="r" role="columnheader">x</span><span class="r" role="columnheader">y</span><span role="columnheader">Status</span><span class="r" role="columnheader">|N<sub>ε</sub>|</span><span role="columnheader">Label</span></div>
         <div id="labelBody" role="rowgroup"></div>
       </div>
-      <p class="help">Rows changed by the latest step are highlighted; the darker row is the point just queried.</p>
 
       <h3>Step log</h3>
       <ol class="log" id="logList"></ol>
@@ -485,13 +590,13 @@ footer .spacer { margin-left: auto; }
 
     <section class="panel" aria-labelledby="h-conv">
       <div class="panel-head"><h2 id="h-conv"><span class="num">4</span>Convergence progress</h2></div>
-      <p class="lead-note">DBSCAN does not minimize a loss function, so this chart tracks how the algorithm converges toward a complete labeling.</p>
+      <p class="lead-note">DBSCAN minimizes no loss function, so this tracks convergence toward a complete labeling.</p>
       <ul class="series" id="seriesLegend"></ul>
       <canvas class="chart" id="convChart" role="img" aria-label="Line chart of unprocessed, assigned and noise points and clusters found per step"></canvas>
-      <p class="help">One step visits exactly one point, so "unprocessed" falls by one per step and reaches 0 when the run is complete. Noise can fall later, when a cluster adopts a noise point as a border point.</p>
+      <p class="help">Unprocessed falls by one per step; noise falls when a cluster adopts a point.</p>
 
       <h3>Choosing ε: the k-distance plot</h3>
-      <p class="help">For every point, the distance to its k-th nearest point (k = MinPts, counting itself), sorted from largest to smallest. A point is core exactly when its k-distance ≤ ε, so everything under the brass line will be core. A good ε sits near the "elbow", where the curve bends sharply.</p>
+      <p class="help">Distance to the k-th nearest point (k = MinPts), sorted. Everything under the ε line will be core; a good ε sits at the elbow.</p>
       <canvas class="chart" id="kdChart" role="img" aria-label="Sorted k-distance plot with the current ε as a horizontal line" style="margin-top:6px"></canvas>
       <div class="kd-foot">
         <span id="kdInfo"></span>
@@ -499,12 +604,6 @@ footer .spacer { margin-left: auto; }
       </div>
     </section>
 
-    <details class="panel tests" id="testsBox">
-      <summary id="testsSummary">Built-in tests</summary>
-      <p class="help">These run the same pure DBSCAN generator the page uses, on hand-checked inputs, when the page loads.</p>
-      <div style="overflow-x:auto"><table id="testsTable"></table></div>
-      <button class="btn" id="rerunTestsBtn" type="button" style="margin-top:8px">Run tests again</button>
-    </details>
   </div>
 </main>
 
@@ -826,7 +925,7 @@ const GENERATORS = {
   },
 };
 
-/* ---------------- test-only helper: k-means (to show where it fails) ---------------- */
+/* ---------------- k-means, for the comparison mode (and the tests) ---------------- */
 function kmeans(points, k, rng, iters = 100) {
   const cents = [points[Math.floor(rng() * points.length)]];
   while (cents.length < k) {                           // k-means++ seeding
@@ -847,7 +946,28 @@ function kmeans(points, k, rng, iters = 100) {
       if (mem.length) cents[j] = { x: mem.reduce((s, p) => s + p.x, 0) / mem.length, y: mem.reduce((s, p) => s + p.y, 0) / mem.length };
     }
   }
-  return assign;
+  return { assign, centroids: cents.map((c) => ({ x: c.x, y: c.y })) };
+}
+
+/**
+ * How often k-means and DBSCAN agree: match every k-means cluster to the DBSCAN
+ * cluster that dominates it, then count the points that fall in that pairing.
+ * Noise points are left out, since k-means has no notion of noise.
+ */
+function clusteringAgreement(labels, assign) {
+  const byK = new Map();
+  let total = 0;
+  for (let i = 0; i < labels.length; i++) {
+    const L = labels[i];
+    if (L <= 0) continue;
+    total++;
+    let m = byK.get(assign[i]);
+    if (!m) byK.set(assign[i], (m = new Map()));
+    m.set(L, (m.get(L) || 0) + 1);
+  }
+  let hit = 0;
+  for (const m of byK.values()) hit += Math.max(...m.values());
+  return total ? hit / total : null;
 }
 
 /* ---------------- self-tests (pure) ---------------- */
@@ -929,7 +1049,7 @@ function runSelfTests() {
       return out;
     };
     const d = acc(r.labels);
-    const km = acc(kmeans(pts, 2, mulberry32(3)));
+    const km = acc(kmeans(pts, 2, mulberry32(3)).assign);
     add("Two moons: DBSCAN vs k-means", "300 moon points, noise 0.1, ε = 0.5, MinPts = 5",
       "DBSCAN ≥ 95% per moon, 2 distinct clusters; k-means < 90%",
       `DBSCAN ${(d.score * 100).toFixed(1)}% (${r.clusters} clusters); k-means ${(km.score * 100).toFixed(1)}%`,
@@ -961,8 +1081,8 @@ const $ = (id) => document.getElementById(id);
 const MAX_POINTS = 500;
 // Okabe–Ito-based hues, lightened where needed to stay visible on the dark board.
 const CLUSTER_COLORS = ["#56B4E9", "#E69F00", "#2FBF8F", "#F0E442", "#D47FB0", "#F2653A", "#9C95FF", "#A6D854"];
-const COLORS = { chalk: "#ede7d9", fog: "#98a1b2", brass: "#d9a950", rule: "#313a4d",
-                 board: "#10151e", noise: "#8d94a4", unvisited: "#4c5567" };
+const COLORS = { chalk: "#f7f8f8", fog: "#9ba1ad", brass: "#8b8aff", rule: "rgba(255,255,255,0.16)",
+                 board: "#0b0c0d", noise: "#a2a7b3", unvisited: "#5d6371" };
 const clusterColor = (k) => CLUSTER_COLORS[(k - 1) % CLUSTER_COLORS.length];
 const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 const reducedMotion = () => motionQuery.matches;
@@ -986,6 +1106,10 @@ const state = {
   hover: -1, mouse: null, cursor: null, boardFocused: false,
   epsAnimStart: -1, pulses: [], preview: null, showAllEps: false,
 
+  steps: [], view: 0,                // every step taken so far, and which one is on screen (0 = before step 1)
+  hoverInfo: null, kdGeo: null,      // cached ε-neighbourhood of the hovered point; k-distance chart geometry
+  compare: false, km: null, kmLayer: null,   // k-means comparison: result cache and its background layer
+  lastGen: "moons", genSeed: 2024,   // which generator drew the current points, and with which seed
   kd: null, kdKey: "",
   rows: [], highlighted: [],
   emptyView: null,
@@ -1014,18 +1138,44 @@ function labelInfo(label, isCore) {
   return { text: "—", kind: "none", color: null };
 }
 
+/** Typed copies of the per-point arrays: a 500-step replay costs ~1.5 MB instead of tens of MB. */
+function compactRecord(rec) {
+  return Object.assign({}, rec, {
+    labels: Int16Array.from(rec.labels),
+    visited: Uint8Array.from(rec.visited, (v) => (v ? 1 : 0)),
+    core: Uint8Array.from(rec.core, (v) => (v ? 1 : 0)),
+    nCount: Int16Array.from(rec.nCount, (v) => (v == null ? -1 : v)),
+  });
+}
+
 /** The state to display: the latest step record, or an all-unvisited view before the first step. */
 function currentView() {
   return state.rec || state.emptyView;
 }
 
-let noticeTimer = 0;
+let noticeTimer = 0, noticeIdleTimer = 0;
+const NOTICE_IDLE_MS = 8000;
+
+/** What the status line says when nothing has happened recently: a hint for the current state. */
+function defaultNotice() {
+  if (!state.points.length) return "Add points: click the canvas, or pick a generator.";
+  if (state.view < state.steps.length) return `Replaying step ${state.view} of ${state.steps.length}. Press Step to go forward.`;
+  if (state.converged) return "Converged. Drag the timeline to replay it, or press Reset to run again.";
+  if (state.started) return "Press Step for the next region query, or Play to run to the end.";
+  return "Choose data, set ε and MinPts, then press Step.";
+}
+
 function notify(msg) {
   const el = $("notice");
   el.textContent = msg;
   el.classList.add("flash");
   clearTimeout(noticeTimer);
+  clearTimeout(noticeIdleTimer);
   noticeTimer = setTimeout(() => el.classList.remove("flash"), 2500);
+  noticeIdleTimer = setTimeout(() => {          // fall back to the hint rather than leaving stale news on screen
+    el.textContent = defaultNotice();
+    el.classList.remove("flash");
+  }, NOTICE_IDLE_MS);
 }
 
 /* ---------------- plain-English explanation of a step ---------------- */
@@ -1115,7 +1265,7 @@ function renderMath(rec) {
 /* ---------------- panel 3: counters, queue, table, log ---------------- */
 function renderCounters(c) {
   const items = [["clusters", c.clusters], ["core", c.core], ["border", c.border], ["noise", c.noise], ["unprocessed", c.remaining]];
-  $("counters").innerHTML = items.map(([k, v]) => `<div class="counter"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
+  $("counters").innerHTML = items.map(([k, v]) => `<div class="counter" data-k="${k}"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("");
 }
 
 function renderQueue(rec) {
@@ -1139,7 +1289,8 @@ function rowCells(i, v) {
   const info = labelInfo(v.labels[i], v.core[i]);
   const sw = info.color
     ? `<span class="swatch${info.kind === "border" ? " ring" : ""}" style="background:${info.color};border-color:${info.color}"></span>` : "";
-  const nc = v.nCount[i] == null ? "" : v.nCount[i];
+  const ncv = v.nCount[i];
+  const nc = ncv == null || ncv < 0 ? "" : ncv;
   return `<span role="cell">p${i}</span><span class="r" role="cell">${f2(P.x)}</span><span class="r" role="cell">${f2(P.y)}</span>` +
          `<span class="st-${status}" role="cell">${status}</span><span class="r" role="cell">${nc}</span><span role="cell">${sw}${info.text}</span>`;
 }
@@ -1238,6 +1389,37 @@ const toScreen = (x, y) => [geo.ox + x * geo.sc, geo.oy + (WORLD - y) * geo.sc];
 const toWorld = (px, py) => ({ x: (px - geo.ox) / geo.sc, y: WORLD - (py - geo.oy) / geo.sc });
 const insidePlot = (w) => w.x >= 0 && w.x <= WORLD && w.y >= 0 && w.y <= WORLD;
 
+/** The ε-neighbourhood of the hovered point, computed on demand and cached. */
+function hoverNeighbourhood() {
+  const i = state.hover;
+  if (i < 0 || !state.points[i]) return null;
+  const key = `${i}|${state.eps}|${state.minPts}|${state.metric}|${state.dataVersion}`;
+  if (!state.hoverInfo || state.hoverInfo.key !== key) {
+    const r = regionQuery(state.points, i, state.eps, METRICS[state.metric].dist);
+    state.hoverInfo = { key, ids: r.ids, count: r.ids.length };
+  }
+  return state.hoverInfo;
+}
+
+/** Hovering a point highlights its row, and hovering a row highlights the point. */
+function setHover(i, fromTable) {
+  if (i === state.hover) return;
+  const old = state.rows[state.hover];
+  if (old) old.classList.remove("hover");
+  state.hover = i;
+  state.hoverInfo = null;
+  const row = state.rows[i];
+  if (row) {
+    row.classList.add("hover");
+    if (!fromTable) {
+      const wrap = $("tableWrap"), top = row.offsetTop;
+      if (top < wrap.scrollTop + 26 || top + row.offsetHeight > wrap.scrollTop + wrap.clientHeight)
+        wrap.scrollTop = Math.max(0, top - wrap.clientHeight / 2);
+    }
+  }
+  requestRender();
+}
+
 /** Nearest point within `radius` screen px; ties go to the most recently added (drawn on top). */
 function hitTest(px, py, radius = 9) {
   let best = -1, bd = radius * radius;
@@ -1275,7 +1457,7 @@ function drawTag(ctx, text, x, y, w, h, color = COLORS.chalk) {
   if (bx + tw > w - 4) bx = x - tw - 12;
   if (by < 4) by = y + 12;
   bx = clamp(bx, 4, Math.max(4, w - tw - 4));
-  ctx.fillStyle = "rgba(16,21,30,0.94)";
+  ctx.fillStyle = "rgba(8,9,10,0.94)";
   ctx.strokeStyle = COLORS.rule;
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -1284,6 +1466,61 @@ function drawTag(ctx, text, x, y, w, h, color = COLORS.chalk) {
   ctx.fillStyle = color;
   ctx.textAlign = "left"; ctx.textBaseline = "middle";
   ctx.fillText(text, bx + 6, by + th / 2 + 0.5);
+}
+
+/** k-means on the current points, with k = the number of clusters DBSCAN has found (at least 2). */
+function kmeansResult() {
+  const n = state.points.length;
+  const v = currentView();
+  const k = Math.max(2, Math.min(v.counts.clusters || 2, 8, n));
+  if (n < k) return null;
+  const key = `${state.dataVersion}|${k}`;
+  if (!state.km || state.km.key !== key) {
+    const r = kmeans(state.points, k, mulberry32(12345));
+    state.km = { key, k, assign: r.assign, centroids: r.centroids };
+  }
+  state.km.agreement = clusteringAgreement(v.labels, state.km.assign);
+  return state.km;
+}
+
+/**
+ * The k-means regions as a background wash: every pixel takes the tint of its nearest
+ * centroid, and pixels on a border are drawn brighter. Straight edges are the whole point.
+ */
+function kmeansLayer(km) {
+  const key = `${km.key}|${Math.round(geo.size)}|${km.centroids.map((c) => c.x.toFixed(2) + "," + c.y.toFixed(2)).join(";")}`;
+  if (state.kmLayer && state.kmLayer.key === key) return state.kmLayer.canvas;
+  const bw = Math.max(1, Math.ceil(geo.size / 2));
+  const cv = document.createElement("canvas");
+  cv.width = bw; cv.height = bw;
+  const g = cv.getContext("2d");
+  const img = g.createImageData(bw, bw);
+  const idx = new Int8Array(bw * bw);
+  for (let by = 0; by < bw; by++) {
+    const wy = WORLD - (by * 2) / geo.sc;
+    for (let bx = 0; bx < bw; bx++) {
+      const wx = (bx * 2) / geo.sc;
+      let best = 0, bd = Infinity;
+      for (let c = 0; c < km.centroids.length; c++) {
+        const dx = wx - km.centroids[c].x, dy = wy - km.centroids[c].y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = c; }
+      }
+      idx[by * bw + bx] = best;
+    }
+  }
+  const TINT = [10, 26, 16, 32, 12, 28, 18, 34];          // alpha per region, neutral on purpose
+  for (let by = 0; by < bw; by++) {
+    for (let bx = 0; bx < bw; bx++) {
+      const i = by * bw + bx, o = i * 4, me = idx[i];
+      const edge = (bx + 1 < bw && idx[i + 1] !== me) || (by + 1 < bw && idx[i + bw] !== me);
+      img.data[o] = img.data[o + 1] = img.data[o + 2] = 255;
+      img.data[o + 3] = edge ? 150 : TINT[me % TINT.length];
+    }
+  }
+  g.putImageData(img, 0, 0);
+  state.kmLayer = { key, canvas: cv };
+  return cv;
 }
 
 let renderQueued = false;
@@ -1305,7 +1542,7 @@ function drawBoard(now) {
   ctx.font = `11px ${FONT}`;
   for (let i = 0; i <= WORLD; i++) {
     const gx = Math.round(toScreen(i, 0)[0]) + 0.5, gy = Math.round(toScreen(0, i)[1]) + 0.5;
-    ctx.strokeStyle = i % 5 === 0 ? "rgba(152,161,178,0.22)" : "rgba(152,161,178,0.08)";
+    ctx.strokeStyle = i % 5 === 0 ? "rgba(155,161,173,0.30)" : "rgba(155,161,173,0.13)";
     ctx.beginPath();
     ctx.moveTo(gx, geo.oy); ctx.lineTo(gx, geo.oy + geo.size);
     ctx.moveTo(geo.ox, gy); ctx.lineTo(geo.ox + geo.size, gy);
@@ -1321,10 +1558,25 @@ function drawBoard(now) {
 
   const epsPx = state.eps * sc;
 
+  // --- optional: the k-means regions, for comparison ---
+  let km = null;
+  if (state.compare && pts.length) {
+    km = kmeansResult();
+    if (km) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(geo.ox, geo.oy, geo.size, geo.size);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(kmeansLayer(km), geo.ox, geo.oy, geo.size, geo.size);
+      ctx.restore();
+    }
+  }
+
   // --- optional: ε around every point ---
   if (state.showAllEps && epsPx > 0.5) {
-    ctx.fillStyle = "rgba(237,231,217,0.03)";
-    ctx.strokeStyle = "rgba(237,231,217,0.11)";
+    ctx.fillStyle = "rgba(247,248,248,0.03)";
+    ctx.strokeStyle = "rgba(247,248,248,0.11)";
     ctx.lineWidth = 1;
     for (const P of pts) {
       const [x, y] = toScreen(P.x, P.y);
@@ -1348,7 +1600,7 @@ function drawBoard(now) {
     const rPx = rec.eps * sc * e;
 
     epsPath(ctx, cx, cy, Math.max(rPx, 0.5), rec.metric);
-    ctx.fillStyle = "rgba(237,231,217,0.07)";
+    ctx.fillStyle = "rgba(247,248,248,0.07)";
     ctx.fill();
     ctx.setLineDash([5, 4]);
     ctx.strokeStyle = COLORS.chalk;
@@ -1356,7 +1608,7 @@ function drawBoard(now) {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.strokeStyle = `rgba(237,231,217,${0.5 * e})`;
+    ctx.strokeStyle = `rgba(247,248,248,${0.5 * e})`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const q of rec.neighbours) {
@@ -1367,7 +1619,7 @@ function drawBoard(now) {
     ctx.stroke();
 
     if (rPx > 34 && t === 1) {                         // radius annotation
-      ctx.strokeStyle = "rgba(237,231,217,0.7)";
+      ctx.strokeStyle = "rgba(247,248,248,0.7)";
       ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx - rPx, cy); ctx.stroke();
       ctx.fillStyle = COLORS.chalk;
       ctx.font = `11px ${FONT}`;
@@ -1383,13 +1635,13 @@ function drawBoard(now) {
     if (L > 0) {
       const col = clusterColor(L);
       if (v.core[i]) {
-        ctx.fillStyle = col; circlePath(ctx, x, y, 5); ctx.fill();
+        ctx.fillStyle = col; circlePath(ctx, x, y, 5.4); ctx.fill();
       } else {
-        ctx.strokeStyle = col; ctx.lineWidth = 1.6; circlePath(ctx, x, y, 5.2); ctx.stroke();
-        ctx.fillStyle = col; circlePath(ctx, x, y, 2.2); ctx.fill();
+        ctx.strokeStyle = col; ctx.lineWidth = 1.9; circlePath(ctx, x, y, 5.4); ctx.stroke();
+        ctx.fillStyle = col; circlePath(ctx, x, y, 2.4); ctx.fill();
       }
     } else if (L === LABEL_NOISE) {
-      ctx.strokeStyle = COLORS.noise; ctx.lineWidth = 1.8; drawCross(ctx, x, y, 3.8);
+      ctx.strokeStyle = COLORS.noise; ctx.lineWidth = 2; drawCross(ctx, x, y, 4);
     } else {
       ctx.fillStyle = COLORS.unvisited; circlePath(ctx, x, y, 3.4); ctx.fill();
       if (state.queueSet.has(i)) {
@@ -1401,7 +1653,7 @@ function drawBoard(now) {
 
   // --- highlight the neighbours of the current query and the current point ---
   if (rec && cur) {
-    ctx.strokeStyle = "rgba(237,231,217,0.4)";
+    ctx.strokeStyle = "rgba(247,248,248,0.4)";
     ctx.lineWidth = 1;
     for (const q of rec.neighbours) {
       if (q === rec.point) continue;
@@ -1436,9 +1688,9 @@ function drawBoard(now) {
     const [x, y] = toScreen(state.preview.x, state.preview.y);
     const a = Math.min(1, (state.preview.until - now) / 400);
     epsPath(ctx, x, y, Math.max(epsPx, 0.5));
-    ctx.fillStyle = `rgba(217,169,80,${0.1 * a})`; ctx.fill();
-    ctx.setLineDash([6, 4]); ctx.strokeStyle = `rgba(217,169,80,${a})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = `rgba(217,169,80,${a})`; ctx.font = `12px ${FONT}`;
+    ctx.fillStyle = `rgba(113,112,255,${0.1 * a})`; ctx.fill();
+    ctx.setLineDash([6, 4]); ctx.strokeStyle = `rgba(113,112,255,${a})`; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(113,112,255,${a})`; ctx.font = `12px ${FONT}`;
     ctx.textAlign = "center"; ctx.textBaseline = "bottom";
     ctx.fillText(`ε = ${f2(state.eps)}`, x, y - Math.max(epsPx, 6) - 4);
     animating = true;
@@ -1447,7 +1699,7 @@ function drawBoard(now) {
   // --- ε scale bar (bottom-right of the plot) ---
   if (pts.length && epsPx >= 3 && epsPx <= geo.size * 0.45) {
     const x1 = geo.ox + geo.size - 12, x0 = x1 - epsPx, y0 = geo.oy + geo.size - 12;
-    ctx.fillStyle = "rgba(16,21,30,0.85)";
+    ctx.fillStyle = "rgba(8,9,10,0.85)";
     ctx.fillRect(x0 - 8, y0 - 20, epsPx + 16, 28);
     ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -1460,11 +1712,39 @@ function drawBoard(now) {
     ctx.fillText(`ε = ${f2(state.eps)}`, (x0 + x1) / 2, y0 - 5);
   }
 
+  // --- k-means centroids and the agreement readout ---
+  if (km) {
+    ctx.lineWidth = 2;
+    for (const c of km.centroids) {
+      const [cx, cy] = toScreen(c.x, c.y);
+      ctx.strokeStyle = "rgba(11,12,13,0.85)";
+      circlePath(ctx, cx, cy, 9); ctx.stroke();
+      ctx.strokeStyle = COLORS.chalk;
+      circlePath(ctx, cx, cy, 8); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy); ctx.lineTo(cx + 5, cy);
+      ctx.moveTo(cx, cy - 5); ctx.lineTo(cx, cy + 5);
+      ctx.stroke();
+    }
+    const pct = km.agreement == null ? null : Math.round(km.agreement * 100);
+    const text = pct == null
+      ? `k-means (k = ${km.k}) · run DBSCAN to compare`
+      : `k-means (k = ${km.k}) · ${pct}% of clustered points agree with DBSCAN`;
+    ctx.font = `12px ${FONT}`;
+    const tw = ctx.measureText(text).width;
+    const ty = geo.oy + geo.size - 30;            // bottom left: clear of the edit hint and the ε scale bar
+    ctx.fillStyle = "rgba(11,12,13,0.88)";
+    ctx.fillRect(geo.ox + 6, ty - 11, tw + 12, 22);
+    ctx.fillStyle = COLORS.chalk;
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillText(text, geo.ox + 12, ty);
+  }
+
   // --- how to edit (only before a run starts, and not while a point is hovered) ---
   if (pts.length && state.hover < 0 && !state.started) {
     ctx.font = `11.5px ${FONT}`;
     const tip = "Click: add a point · click a point: delete it";
-    ctx.fillStyle = "rgba(16,21,30,0.85)";
+    ctx.fillStyle = "rgba(8,9,10,0.85)";
     ctx.fillRect(geo.ox + 6, geo.oy + 6, ctx.measureText(tip).width + 12, 20);
     ctx.fillStyle = COLORS.fog;
     ctx.textAlign = "left"; ctx.textBaseline = "middle";
@@ -1475,14 +1755,36 @@ function drawBoard(now) {
   if (state.hover >= 0 && pts[state.hover]) {
     const i = state.hover, P = pts[i];
     const [x, y] = toScreen(P.x, P.y);
+    const info = hoverNeighbourhood();
+    // preview the region query for this point, even before the run reaches it
+    if (info && (!rec || rec.point !== i) && epsPx > 0.5) {
+      epsPath(ctx, x, y, epsPx);
+      ctx.fillStyle = "rgba(139, 138, 255, 0.07)";
+      ctx.fill();
+      ctx.setLineDash([4, 3]);
+      ctx.strokeStyle = COLORS.brass; ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "rgba(139, 138, 255, 0.35)"; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (const q of info.ids) {
+        if (q === i) continue;
+        const [qx, qy] = toScreen(pts[q].x, pts[q].y);
+        ctx.moveTo(x, y); ctx.lineTo(qx, qy);
+      }
+      ctx.stroke();
+    }
     ctx.strokeStyle = COLORS.brass; ctx.lineWidth = 2;
     circlePath(ctx, x, y, 9); ctx.stroke();
     let what = labelInfo(v.labels[i], v.core[i]).text;
     if (what === "—") what = state.queueSet.has(i) ? "queued" : "not processed";
-    drawTag(ctx, `p${i} (${f2(P.x)}, ${f2(P.y)}) · ${what} · click to delete`, x, y, w, h);
+    const verdict = info
+      ? `|N| = ${info.count} ${info.count >= state.minPts ? "≥" : "<"} MinPts ${state.minPts} → ${info.count >= state.minPts ? "core" : "not core"}`
+      : "";
+    drawTag(ctx, `p${i} · ${what} · ${verdict}`, x, y, w, h);
   } else if (state.mouse && insidePlot(toWorld(state.mouse.px, state.mouse.py)) && !state.boardFocusedByKey) {
     const { px, py } = state.mouse;
-    ctx.strokeStyle = "rgba(217,169,80,0.8)"; ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(113,112,255,0.8)"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(px - 5, py); ctx.lineTo(px + 5, py); ctx.moveTo(px, py - 5); ctx.lineTo(px, py + 5); ctx.stroke();
   }
   if (state.boardFocusedByKey && state.cursor) {
@@ -1511,7 +1813,7 @@ const SERIES = [
   { key: "remaining", name: "Unprocessed points", color: COLORS.chalk, width: 2.5 },
   { key: "assigned",  name: "Assigned to a cluster", color: COLORS.brass, width: 2 },
   { key: "noise",     name: "Noise points", color: COLORS.noise, width: 1.8, dash: [5, 4] },
-  { key: "clusters",  name: "Clusters found (right axis)", color: "#9C95FF", width: 1.4, stepped: true, right: true },
+  { key: "clusters",  name: "Clusters found (right axis)", color: "#34d399", width: 1.6, stepped: true, right: true },
 ];
 
 /** Axis maximum that splits into 4 "nice" ticks: 4 × (1, 2, 2.5, 3, 4, 5, 6 or 8) × 10^k ≥ v; integer ticks when asked. */
@@ -1533,7 +1835,7 @@ function chartMessage(ctx, w, h, text) {
 }
 
 function renderConvergence() {
-  const hist = state.history;
+  const hist = state.history.slice(0, state.view + 1);   // the chart follows the timeline
   const last = hist[hist.length - 1] || zeroCounts(0);
   $("seriesLegend").innerHTML = SERIES.map((s) =>
     `<li><svg width="24" height="10" aria-hidden="true"><line x1="1" y1="5" x2="23" y2="5" stroke="${s.color}" stroke-width="${s.width}"${s.dash ? ` stroke-dasharray="${s.dash.join(" ")}"` : ""}/></svg>${s.name} <b>${last[s.key]}</b></li>`
@@ -1556,12 +1858,12 @@ function renderConvergence() {
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = Math.round(T + ph - (ph * i) / 4) + 0.5;
-    ctx.strokeStyle = i === 0 ? "rgba(152,161,178,0.35)" : "rgba(152,161,178,0.1)";
+    ctx.strokeStyle = i === 0 ? "rgba(138,143,152,0.35)" : "rgba(138,143,152,0.1)";
     ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
     ctx.fillStyle = COLORS.fog; ctx.textAlign = "right"; ctx.textBaseline = "middle";
     ctx.fillText(tickText((yMax * i) / 4), L - 6, y);
     if (i % 2 === 0) {
-      ctx.fillStyle = "#9C95FF"; ctx.textAlign = "left";
+      ctx.fillStyle = "#34d399"; ctx.textAlign = "left";
       ctx.fillText(tickText((cMax * i) / 4), L + pw + 6, y);
     }
   }
@@ -1588,7 +1890,7 @@ function renderConvergence() {
   const cur = hist[hist.length - 1];
   if (cur.step > 0) {
     const x = Math.round(X(cur.step)) + 0.5;
-    ctx.strokeStyle = state.converged ? COLORS.brass : "rgba(152,161,178,0.35)";
+    ctx.strokeStyle = state.converged ? COLORS.brass : "rgba(138,143,152,0.35)";
     ctx.setLineDash(state.converged ? [4, 3] : []);
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, T + ph); ctx.stroke();
@@ -1632,12 +1934,13 @@ function renderKDist() {
   const yMax = niceMax(Math.max(s[0], eps) * 1.05);
   const X = (i) => L + (n === 1 ? pw / 2 : (i / (n - 1)) * pw);
   const Y = (v) => T + ph - (Math.min(v, yMax) / yMax) * ph;
+  state.kdGeo = { T, ph, yMax };   // lets the pointer handlers map a y position back to an ε value
 
   ctx.font = `11px ${FONT}`;
   ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = Math.round(T + ph - (ph * i) / 4) + 0.5;
-    ctx.strokeStyle = i === 0 ? "rgba(152,161,178,0.35)" : "rgba(152,161,178,0.1)";
+    ctx.strokeStyle = i === 0 ? "rgba(138,143,152,0.35)" : "rgba(138,143,152,0.1)";
     ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(L + pw, y); ctx.stroke();
     ctx.fillStyle = COLORS.fog; ctx.textAlign = "right"; ctx.textBaseline = "middle";
     ctx.fillText(tickText((yMax * i) / 4), L - 6, y);
@@ -1649,7 +1952,7 @@ function renderKDist() {
 
   // region under ε = points that will be core
   const yEps = Y(eps);
-  ctx.fillStyle = "rgba(217,169,80,0.07)";
+  ctx.fillStyle = "rgba(113,112,255,0.07)";
   ctx.fillRect(L, yEps, pw, T + ph - yEps);
 
   ctx.beginPath();
@@ -1657,7 +1960,7 @@ function renderKDist() {
   s.forEach((v, i) => ctx.lineTo(X(i), Y(v)));
   ctx.lineTo(X(n - 1), Y(0));
   ctx.closePath();
-  ctx.fillStyle = "rgba(237,231,217,0.06)"; ctx.fill();
+  ctx.fillStyle = "rgba(247,248,248,0.06)"; ctx.fill();
   ctx.beginPath();
   s.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))));
   ctx.strokeStyle = COLORS.chalk; ctx.lineWidth = 1.8; ctx.stroke();
@@ -1668,7 +1971,7 @@ function renderKDist() {
   ctx.setLineDash([]);
   ctx.fillStyle = COLORS.brass; ctx.font = `12px ${FONT}`;
   ctx.textAlign = "right"; ctx.textBaseline = "bottom";
-  ctx.fillText(`ε = ${f2(eps)}`, L + pw - 4, yEps - 3);
+  ctx.fillText(`ε = ${f2(eps)}  ↕ drag`, L + pw - 4, yEps - 3);
 
   let elbowEps = null;
   if (kd.elbow >= 0) {
@@ -1693,18 +1996,21 @@ function updateStatus() {
   const pill = $("runStatus"), n = state.points.length;
   let text, st;
   if (!n) { text = "No data"; st = "idle"; }
-  else if (state.converged) { const c = currentView().counts; text = `Converged · ${c.clusters} ${plural(c.clusters, "cluster", "clusters")}`; st = "converged"; }
   else if (state.playing) { text = "Running"; st = "running"; }
+  else if (state.view < state.steps.length) { text = `Replay · step ${state.view} / ${state.steps.length}`; st = "paused"; }
+  else if (state.converged) { const c = currentView().counts; text = `Converged · ${c.clusters} ${plural(c.clusters, "cluster", "clusters")}`; st = "converged"; }
   else if (state.started) { text = `Paused at step ${state.rec ? state.rec.step : 0}`; st = "paused"; }
   else { text = "Ready"; st = "idle"; }
   pill.textContent = text;
   pill.dataset.state = st;
+  board.classList.toggle("running", state.playing);
 }
 
 function updateButtons() {
   const n = state.points.length;
-  $("stepBtn").disabled = !n || state.converged || state.playing;
-  $("playBtn").disabled = !n || state.converged || state.playing;
+  const canReplay = state.view < state.steps.length;        // still recorded steps ahead of the view
+  $("stepBtn").disabled = !n || state.playing || (state.converged && !canReplay);
+  $("playBtn").disabled = !n || state.playing || (state.converged && !canReplay);
   $("pauseBtn").disabled = !state.playing;
   $("resetBtn").disabled = !state.started;
   $("resetRunBtn").disabled = !state.started;
@@ -1714,11 +2020,12 @@ function updateButtons() {
 }
 
 /** Discard the run but keep the points. Returns true if a run had started. */
-function resetRun(reason) {
+function resetRun(reason, skipTable) {
   const hadRun = state.started;
   pause(true);
   const n = state.points.length;
   state.gen = null; state.rec = null;
+  state.steps = []; state.view = 0;
   state.started = false; state.converged = false;
   state.queueSet = new Set(); state.log = []; state.pulses = []; state.epsAnimStart = -1;
   state.emptyView = {
@@ -1727,7 +2034,8 @@ function resetRun(reason) {
     queue: [], counts: zeroCounts(n),
   };
   state.history = [{ step: 0, ...zeroCounts(n) }];
-  buildTable();
+  if (!skipTable) buildTable();     // while a slider is dragged the table is rebuilt once, after it settles
+  updateTimeline();
   renderStatePanel();
   renderConvergence();
   updateButtons();
@@ -1736,9 +2044,47 @@ function resetRun(reason) {
   return hadRun;
 }
 
-/** Advance exactly one region query. Step and Play share this code path. */
+/** Show a recorded step (0 = the state before step 1). Used by the timeline and by replaying forward. */
+function setView(i) {
+  state.view = clamp(Math.round(i), 0, state.steps.length);
+  const rec = state.view > 0 ? state.steps[state.view - 1] : null;
+  state.rec = rec;
+  state.queueSet = new Set(rec ? rec.queue : []);
+  state.pulses = [];
+  state.epsAnimStart = performance.now();
+  rebuildLog();
+  buildTable();                       // a scrub can jump anywhere, so rebuild rather than diff
+  renderStatePanel();
+  renderConvergence();
+  updateButtons();
+  updateTimeline();
+  requestRender();
+}
+
+/** The log shows the ten steps that precede whatever the timeline is pointing at. */
+function rebuildLog() {
+  state.log = [];
+  for (let k = state.view - 1; k >= 0 && state.log.length < 10; k--) {
+    state.log.push({ step: state.steps[k].step, text: describeStep(state.steps[k]) });
+  }
+  if (state.converged && state.view === state.steps.length && state.steps.length) {
+    state.log.unshift({ step: "✓", text: convergedSummary(currentView().counts) });
+    if (state.log.length > 10) state.log.length = 10;
+  }
+}
+
+function updateTimeline() {
+  const el = $("timeline"), total = state.steps.length;
+  el.max = String(total);
+  el.value = String(state.view);
+  el.disabled = total === 0;
+  $("timelineOut").textContent = `step ${state.view} / ${total}`;
+}
+
+/** Advance one step: replay the next recorded step, or run the next region query. */
 function doStep() {
   if (!state.points.length) { notify("Add some points first: click the canvas or use a generator."); return false; }
+  if (state.view < state.steps.length) { setView(state.view + 1); return true; }   // replay forward
   if (state.converged) { notify("This run has already converged. Press Reset to run it again."); return false; }
   if (!state.gen) {
     state.gen = dbscanSteps(state.points.map((p) => ({ x: p.x, y: p.y })), state.eps, state.minPts, state.metric);
@@ -1747,7 +2093,9 @@ function doStep() {
   const r = state.gen.next();
   if (r.done) { finishRun(); return false; }
 
-  const rec = r.value;
+  const rec = compactRecord(r.value);
+  state.steps.push(rec);
+  state.view = state.steps.length;
   state.rec = rec;
   state.queueSet = new Set(rec.queue);
   state.history.push({ step: rec.step, ...rec.counts });
@@ -1757,6 +2105,7 @@ function doStep() {
   state.epsAnimStart = now;
   if (!reducedMotion()) for (const id of rec.adopted) state.pulses.push({ id, start: now });
   updateRows(rec);
+  updateTimeline();
 
   if (rec.counts.remaining === 0) {      // that was the last unvisited point
     state.gen.next();                    // let the generator return
@@ -1780,6 +2129,7 @@ function finishRun() {
   renderStatePanel();
   renderConvergence();
   updateButtons();
+  updateTimeline();
   notify(summary);
   const a = document.activeElement;
   if (a && a.disabled) $("resetBtn").focus();
@@ -1787,7 +2137,7 @@ function finishRun() {
 
 function play() {
   if (!state.points.length) { notify("Add some points first: click the canvas or use a generator."); return; }
-  if (state.converged) { notify("This run has already converged. Press Reset to run it again."); return; }
+  if (state.converged && state.view >= state.steps.length) { notify("This run has already converged. Press Reset to run it again."); return; }
   if (state.playing) return;
   const refocus = document.activeElement === $("playBtn");
   state.playing = true;
@@ -1798,8 +2148,9 @@ function play() {
 
 function tick() {
   if (!state.playing) return;
-  doStep();
-  if (state.playing && !state.converged) state.timer = setTimeout(tick, 1000 / state.speed);
+  if (!doStep()) { pause(true); return; }
+  if (state.converged && state.view >= state.steps.length) return;   // finishRun already paused
+  if (state.playing) state.timer = setTimeout(tick, 1000 / state.speed);
 }
 
 function pause(silent) {
@@ -1813,22 +2164,32 @@ function pause(silent) {
 }
 
 /* ---------------- controller: data ---------------- */
-function afterDataChange(reason) {
+let settleTimer = 0;
+/** `quick` skips the expensive parts (500-row table, O(n^2) k-distance) until the slider stops moving. */
+function afterDataChange(reason, quick) {
   state.dataVersion++;
   state.hover = -1;
-  resetRun(reason);
+  state.km = state.kmLayer = null;
+  resetRun(reason, quick);
   renderWarnings();
-  renderKDist();
+  clearTimeout(settleTimer);
+  if (quick) {
+    settleTimer = setTimeout(() => { buildTable(); renderKDist(); }, 180);
+  } else {
+    renderKDist();
+  }
 }
 
 function addPoint(x, y) {
   if (state.points.length >= MAX_POINTS) { notify(`The canvas holds at most ${MAX_POINTS} points. Delete some first.`); return; }
   state.points.push({ x: clamp(x, 0, WORLD), y: clamp(y, 0, WORLD) });
+  state.lastGen = null;                          // hand-edited: the sliders must not overwrite it
   afterDataChange("a point was added");
 }
 
 function removePoint(i) {
   state.points.splice(i, 1);
+  state.lastGen = null;
   afterDataChange("a point was removed (later point numbers shift down by one)");
 }
 
@@ -1836,8 +2197,10 @@ const GEN_NAMES = { uniform: "uniform random", blobs: "Gaussian blobs", moons: "
 
 function loadData(kind) {
   pause(true);
+  state.lastGen = kind;
+  state.genSeed = (Math.random() * 4294967296) >>> 0;   // a fresh layout per click, then stable while sliders move
   const n = +$("nRange").value, noise = +$("noiseRange").value;
-  state.points = GENERATORS[kind](n, noise, Math.random).map(({ x, y }) => ({ x, y }));
+  state.points = GENERATORS[kind](n, noise, mulberry32(state.genSeed)).map(({ x, y }) => ({ x, y }));
   if (kind === "worked") {
     setEpsValue(KNOWN_ANSWER.eps);
     setMinPtsValue(KNOWN_ANSWER.minPts);
@@ -1847,6 +2210,25 @@ function loadData(kind) {
   notify(kind === "worked"
     ? "Loaded the 12-point worked example and set ε = 1.00, MinPts = 3, Euclidean. Every label can be checked by hand (see Built-in tests)."
     : `Generated ${state.points.length} points (${GEN_NAMES[kind]}). Press Step or Play.`);
+}
+
+/** Redraw the current generator with the current slider values, keeping its seed so the shape stays put. */
+let liveGenQueued = false;
+function regenerateFromSliders() {
+  if (liveGenQueued) return;
+  liveGenQueued = true;
+  requestAnimationFrame(() => {                 // coalesce the stream of input events into one redraw per frame
+    liveGenQueued = false;
+    const kind = state.lastGen;
+    if (!kind || kind === "worked" || !GENERATORS[kind]) {
+      notify("Pick a generator (Uniform, Blobs, Two moons or Circles) and these sliders will redraw it live.");
+      return;
+    }
+    pause(true);
+    const n = +$("nRange").value, noise = +$("noiseRange").value;
+    state.points = GENERATORS[kind](n, noise, mulberry32(state.genSeed)).map(({ x, y }) => ({ x, y }));
+    afterDataChange("the dataset changed", true);
+  });
 }
 
 /* ---------------- controller: hyperparameters ---------------- */
@@ -1859,8 +2241,8 @@ function renderFormulas() {
   const man = state.metric === "manhattan";
   $("formulaDist").innerHTML = FORMULA_HTML[state.metric] + (man ? " &nbsp;(Manhattan: the ε-ball is a diamond)" : " &nbsp;(Euclidean: the ε-ball is a circle)");
   $("metricHelp").innerHTML = man
-    ? "Adds the horizontal and vertical gaps, so the ε region is a diamond and the same ε finds fewer neighbours."
-    : "Straight-line distance, so the ε region is a circle.";
+    ? "|Δx| + |Δy|, so the ε region is a diamond."
+    : "Straight line, so the ε region is a circle.";
 }
 
 function renderWarnings() {
@@ -1888,12 +2270,16 @@ function setMetricValue(m) {
 }
 
 /** Any hyperparameter change invalidates a run in progress. */
-function onParamChange(reason) {
-  if (state.started) resetRun(reason);
+function onParamChange(reason, quick) {
+  if (state.started) resetRun(reason, quick);
   else renderStatePanel();
   renderWarnings();
   renderKDist();
   requestRender();
+  if (quick) {                       // dragging: rebuild the big table once the value settles
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(buildTable, 180);
+  }
 }
 
 /** Flash the ε-ball at the hovered point, the current point, or the centre. */
@@ -1920,11 +2306,17 @@ board.addEventListener("pointerdown", () => { state.boardFocusedByKey = false; }
 board.addEventListener("pointermove", (e) => {
   const m = boardPos(e);
   state.mouse = m;
-  state.hover = hitTest(m.px, m.py);
+  setHover(hitTest(m.px, m.py), false);
   board.style.cursor = state.hover >= 0 ? "pointer" : "crosshair";
   requestRender();
 });
-board.addEventListener("pointerleave", () => { state.mouse = null; state.hover = -1; requestRender(); });
+board.addEventListener("pointerleave", () => { state.mouse = null; setHover(-1, false); requestRender(); });
+// hovering a table row lights up the matching point on the canvas
+$("labelBody").addEventListener("mouseover", (e) => {
+  const row = e.target.closest(".trow");
+  if (row) setHover(state.rows.indexOf(row), true);
+});
+$("labelBody").addEventListener("mouseleave", () => setHover(-1, true));
 board.addEventListener("click", (e) => {
   const m = boardPos(e);
   const hit = hitTest(m.px, m.py);
@@ -1933,20 +2325,20 @@ board.addEventListener("click", (e) => {
     const wp = toWorld(m.px, m.py);
     if (insidePlot(wp)) addPoint(wp.x, wp.y);
   }
-  state.hover = hitTest(m.px, m.py);
+  setHover(hitTest(m.px, m.py), false);
   requestRender();
 });
 board.addEventListener("focus", () => {
   state.boardFocused = true;
   state.boardFocusedByKey = board.matches(":focus-visible");
   if (!state.cursor) state.cursor = { x: WORLD / 2, y: WORLD / 2 };
-  if (state.boardFocusedByKey) state.hover = cursorHit();
+  if (state.boardFocusedByKey) setHover(cursorHit(), false);
   requestRender();
 });
 board.addEventListener("blur", () => {
   state.boardFocused = false;
   state.boardFocusedByKey = false;
-  state.hover = -1;
+  setHover(-1, false);
   requestRender();
 });
 board.addEventListener("keydown", (e) => {
@@ -1976,9 +2368,40 @@ board.addEventListener("keydown", (e) => {
   c.x = clamp(c.x, 0, WORLD);
   c.y = clamp(c.y, 0, WORLD);
   state.boardFocusedByKey = true;
-  state.hover = cursorHit();
+  setHover(cursorHit(), false);
   requestRender();
 });
+
+/* ---------------- events: drag the ε line on the k-distance chart ---------------- */
+function kdEpsAt(clientY) {
+  const g = state.kdGeo;
+  if (!g) return null;
+  const r = $("kdChart").getBoundingClientRect();
+  const v = ((g.T + g.ph - (clientY - r.top)) / g.ph) * g.yMax;
+  return clamp(Math.round(v * 100) / 100, 0, 10);
+}
+let kdDragging = false;
+$("kdChart").addEventListener("pointerdown", (e) => {
+  const v = kdEpsAt(e.clientY);
+  if (v == null) return;
+  kdDragging = true;
+  $("kdChart").setPointerCapture(e.pointerId);
+  previewEps();
+  setEpsValue(v);
+  onParamChange("ε changed", true);
+});
+$("kdChart").addEventListener("pointermove", (e) => {
+  const g = state.kdGeo;
+  if (g) {
+    const r = $("kdChart").getBoundingClientRect();
+    const yEps = g.T + g.ph - (Math.min(state.eps, g.yMax) / g.yMax) * g.ph;
+    $("kdChart").style.cursor = kdDragging || Math.abs(e.clientY - r.top - yEps) < 10 ? "ns-resize" : "default";
+  }
+  if (!kdDragging) return;
+  const v = kdEpsAt(e.clientY);
+  if (v != null) { setEpsValue(v); onParamChange("ε changed", true); }
+});
+for (const ev of ["pointerup", "pointercancel", "pointerleave"]) $("kdChart").addEventListener(ev, () => { kdDragging = false; });
 
 /* ---------------- events: controls ---------------- */
 const manualReset = () => {
@@ -1992,13 +2415,21 @@ $("resetBtn").addEventListener("click", manualReset);
 $("resetRunBtn").addEventListener("click", manualReset);
 $("clearBtn").addEventListener("click", () => {
   state.points = [];
+  state.lastGen = null;
   afterDataChange("the canvas was cleared");
   notify("Canvas cleared. Click to add points or use a generator.");
 });
 document.querySelectorAll("[data-gen]").forEach((b) => b.addEventListener("click", () => loadData(b.dataset.gen)));
 
-$("nRange").addEventListener("input", () => { $("nOut").textContent = $("nRange").value; });
-$("noiseRange").addEventListener("input", () => { $("noiseOut").textContent = (+$("noiseRange").value).toFixed(2); });
+$("nRange").addEventListener("input", () => {
+  $("nOut").textContent = $("nRange").value;
+  regenerateFromSliders();
+});
+$("noiseRange").addEventListener("input", () => {
+  $("noiseOut").textContent = (+$("noiseRange").value).toFixed(2);
+  regenerateFromSliders();
+});
+$("timeline").addEventListener("input", () => setView(+$("timeline").value));
 $("speedRange").addEventListener("input", () => {
   state.speed = +$("speedRange").value;
   $("speedOut").textContent = `${state.speed} steps/s`;
@@ -2007,7 +2438,7 @@ $("speedRange").addEventListener("input", () => {
 $("epsRange").addEventListener("input", () => {
   previewEps();
   setEpsValue(+$("epsRange").value);
-  onParamChange("ε changed");
+  onParamChange("ε changed", true);
 });
 $("epsNum").addEventListener("input", () => {
   const v = parseFloat($("epsNum").value);
@@ -2036,6 +2467,14 @@ $("metricSel").addEventListener("change", () => {
   onParamChange("the distance metric changed");
 });
 $("allEpsChk").addEventListener("change", () => { state.showAllEps = $("allEpsChk").checked; requestRender(); });
+$("compareChk").addEventListener("change", () => {
+  state.compare = $("compareChk").checked;
+  state.km = state.kmLayer = null;
+  requestRender();
+  notify(state.compare
+    ? "k-means comparison on: the shaded regions are k-means, ⊕ marks its centres, and it uses the same number of clusters DBSCAN found."
+    : "k-means comparison off: the canvas shows DBSCAN only.");
+});
 
 $("elbowBtn").addEventListener("click", () => {
   const v = parseFloat($("elbowBtn").dataset.eps);
@@ -2081,22 +2520,15 @@ if ("ResizeObserver" in window) {
 }
 if (motionQuery.addEventListener) motionQuery.addEventListener("change", requestRender);
 
-/* ---------------- built-in tests panel ---------------- */
-const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
-
+/* ---------------- built-in tests: run on load, report to the console ---------------- */
 function renderTests() {
   let tests;
   try { tests = runSelfTests(); }
   catch (err) { tests = [{ name: "Test harness", input: "", expected: "no exception", actual: String(err), pass: false }]; }
   const passed = tests.filter((t) => t.pass).length;
-  $("testsSummary").textContent = `Built-in tests: ${passed}/${tests.length} passed`;
-  $("testsTable").innerHTML =
-    "<thead><tr><th>Test</th><th>Input</th><th>Expected</th><th>Actual</th><th>Result</th></tr></thead><tbody>" +
-    tests.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(t.input)}</td><td>${esc(t.expected)}</td><td>${esc(t.actual)}</td>` +
-      `<td class="${t.pass ? "pass" : "fail"}">${t.pass ? "pass" : "fail"}</td></tr>`).join("") + "</tbody>";
-  console.info(`DBSCAN visualizer self-tests: ${passed}/${tests.length} passed`);
+  console.info(`DBSCAN self-tests: ${passed}/${tests.length} passed`);
+  if (passed < tests.length && console.table) console.table(tests.filter((t) => !t.pass));
 }
-$("rerunTestsBtn").addEventListener("click", renderTests);
 
 /* ---------------- start ---------------- */
 function init() {
@@ -2106,11 +2538,15 @@ function init() {
   state.speed = +$("speedRange").value;
   $("speedOut").textContent = `${state.speed} steps/s`;
   // deterministic first view: two moons, where DBSCAN shines and k-means fails
-  state.points = GENERATORS.moons(240, 0.15, mulberry32(2024)).map(({ x, y }) => ({ x, y }));
+  state.lastGen = "moons";
+  state.genSeed = 2024;
+  state.points = GENERATORS.moons(240, 0.15, mulberry32(state.genSeed)).map(({ x, y }) => ({ x, y }));
   state.dataVersion++;
   resetRun();
   renderWarnings();
   renderKDist();
+  updateTimeline();
+  $("notice").textContent = defaultNotice();
   renderTests();
 }
 init();

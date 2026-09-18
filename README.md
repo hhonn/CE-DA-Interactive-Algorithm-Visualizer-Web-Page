@@ -29,19 +29,24 @@ The whole app is a single `index.html` file: no libraries, no build step, no net
 - **Click to Edit**: Add a point by clicking empty space, delete one by clicking it (keyboard: arrow keys + Enter)
 - **Dataset Generators**: Uniform random, Gaussian blobs, two moons, concentric circles, and a 12-point worked example
 - **Live Drawing**: See the current point, its ε-ball to scale, its neighbours, and core / border / noise marks in cluster colours
+- **Compare with k-means**: Shade the regions k-means would produce, with the same number of clusters, and see how often the two agree
+- **Hover to Inspect**: Point at any point to see its ε-ball, its neighbours and whether it qualifies as core, before the run reaches it
 
 ## Hyperparameters & Controls
 
 - **ε and MinPts**: Sliders with live radius preview and a plain-English note on what each one does
 - **Distance Metric**: Switch between Euclidean and Manhattan; every on-screen formula follows
 - **Step / Play / Pause / Reset**: Advance exactly one region query, or auto-run until convergence
+- **Timeline**: Drag back and forth through the steps already taken; the whole panel follows, so you can compare before and after
+- **Live Generators**: The Points and Noise sliders redraw the dataset while you drag, keeping the same shape
 
 ## Model State & Convergence
 
 - **Region Query Math**: Each step written out with real numbers, e.g. `|N_ε(p₁₇)| = 4 ≥ MinPts = 4 → CORE`
 - **Label Table & Queue**: Watch labels change and the expansion queue grow and shrink
 - **Convergence Progress**: DBSCAN has no loss function, so the chart tracks unprocessed, assigned and noise points and clusters found
-- **k-Distance Plot**: Choose ε using the elbow heuristic, with the current ε drawn as a line
+- **k-Distance Plot**: Choose ε using the elbow heuristic, and drag the ε line up or down to set it straight from the chart
+- **Linked Views**: Hovering a table row highlights that point on the canvas, and hovering a point scrolls its row into view
 
 ---
 
